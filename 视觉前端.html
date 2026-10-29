@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>视觉前端</title>
+  <link rel="icon" href="data:,">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #e7d3b0; }
+    button { padding: 0; border: 0; background: transparent; cursor: pointer; }
+    .desk {
+      position: fixed; inset: 0;
+      background: url("前端视觉素材/桌面背景图.png") center / cover no-repeat;
+    }
+    .viewport { position: fixed; inset: 0; overflow: hidden; }
+    .stage {
+      position: absolute; left: 0; top: 0;
+      width: 300vw; height: 300vh;
+      display: grid;
+      grid-template-columns: 100vw 100vw 100vw;
+      grid-template-rows: 100vh 100vh 100vh;
+      transform: translate(-100vw, -100vh);
+      transition: transform 920ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .stage[data-view="chat"] { transform: translate(-100vw, 0); }
+    .stage[data-view="handoff"] { transform: translate(0, -100vh); }
+    .stage[data-view="schedule"] { transform: translate(-200vw, -100vh); }
+    .stage[data-view="project"] { transform: translate(-100vw, -200vh); }
+    .panel { position: relative; }
+    .panel[data-panel="chat"] { grid-column: 2; grid-row: 1; }
+    .panel[data-panel="handoff"] { grid-column: 1; grid-row: 2; }
+    .panel[data-panel="main"] { grid-column: 2; grid-row: 2; }
+    .panel[data-panel="schedule"] { grid-column: 3; grid-row: 2; }
+    .panel[data-panel="project"] { grid-column: 2; grid-row: 3; }
+    .slip { position: absolute; width: min(280px, 24vw); height: auto; pointer-events: none; }
+    .slip-left { left: 4vw; top: 14vh; }
+    .slip-right { right: 5vw; top: 18vh; }
+    .board {
+      position: absolute; left: 50%; top: 50%;
+      width: min(640px, 54vw);
+      transform: translate(-50%, -50%);
+    }
+    .grid { display: block; width: 100%; height: auto; }
+    .note {
+      position: absolute; margin: 0;
+      width: 42%; padding: 22px 10px;
+      background: url("前端视觉素材/主界面/界面材质-纸1.png") center / cover no-repeat;
+      text-align: center; font: 700 18px/1.4 "Microsoft YaHei", sans-serif;
+      color: #1c1c1c;
+      box-shadow: 0 8px 16px rgba(40, 30, 10, 0.16);
+    }
+    .pencil {
+      position: absolute; right: -8%; bottom: 18%;
+      width: 28%; height: auto; pointer-events: none;
+      transform: rotate(28deg);
+    }
+    .controls { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+    .seam {
+      position: absolute; pointer-events: auto;
+      transition: left 920ms cubic-bezier(0.22, 1, 0.36, 1),
+        top 920ms cubic-bezier(0.22, 1, 0.36, 1),
+        width 920ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 920ms cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 320ms ease;
+    }
+    .seam img { display: block; width: 100%; height: auto; }
+    .seam .on { position: absolute; left: 0; top: 0; opacity: 0; transition: opacity 420ms ease; }
+    .seam-handoff .pack.on { opacity: 1; }
+    .seam-handoff .pack.on img { opacity: 0; transition: opacity 420ms ease; will-change: opacity; }
+    .controls[data-view="handoff"] .seam-handoff .pack.on img { opacity: 1; }
+    .controls.is-tuning .seam { transition: none; }
+    .seam-handoff img, .seam-project img, .seam-chat img { image-rendering: pixelated; }
+    .seam-handoff .pack { position: relative; display: block; width: 100%; }
+    .seam-handoff .pack.on { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+    .seam-handoff .pack img { transform-origin: 50% 50%; filter: drop-shadow(4px 8px 0 rgba(30, 24, 16, 0.2)); }
+    .seam-handoff .pack img[data-layer="0"] { position: relative; z-index: 1; }
+    .seam-handoff .pack img[data-layer="1"] { position: absolute; left: 0; top: 0; z-index: 2; }
+    .seam-handoff .pack img[data-layer="2"] { position: absolute; left: 0; top: 0; z-index: 3; }
+    [data-piece].is-picked, .seam.is-picked, .seam-handoff .pack img.is-picked { outline: 2px dashed #c4552a; outline-offset: 3px; }
+    .controls:not([data-view="main"]) .seam { opacity: 0; pointer-events: none; }
+    .controls[data-view="chat"] .seam-chat,
+    .controls[data-view="handoff"] .seam-handoff,
+    .controls[data-view="schedule"] .seam-schedule,
+    .controls[data-view="project"] .seam-project { opacity: 1; pointer-events: auto; }
+    .controls[data-view="chat"] .seam-chat .on,
+    .controls[data-view="handoff"] .seam-handoff .on,
+    .controls[data-view="schedule"] .seam-schedule .on,
+    .controls[data-view="project"] .seam-project .on { opacity: 1; }
+
+    .tuner-open {
+      position: fixed; left: 12px; top: 12px; z-index: 30;
+      padding: 6px 12px; border-radius: 999px;
+      background: #fffdf8; border: 1px solid #e4d8c4;
+      font: 13px/1 "Microsoft YaHei", sans-serif; color: #241c16;
+    }
+    .tuner {
+      position: fixed; left: 12px; top: 48px; z-index: 40;
+      width: 280px; max-height: calc(100vh - 64px); overflow: auto;
+      padding: 12px; border-radius: 14px;
+      background: rgba(255, 253, 248, 0.96); border: 1px solid #e4d8c4;
+      font: 13px/1.4 "Microsoft YaHei", sans-serif; color: #241c16;
+      box-shadow: 0 10px 24px rgba(40, 30, 10, 0.12);
+    }
+    .tuner[hidden], .tuner [hidden] { display: none; }
+    .tuner h2 { margin: 0 0 8px; font-size: 15px; cursor: grab; user-select: none; }
+    .tuner.is-dragging h2 { cursor: grabbing; }
+    .tuner label { display: grid; grid-template-columns: 64px 1fr 64px; gap: 6px; align-items: center; margin: 6px 0; }
+    .tuner select, .tuner input[type="number"] {
+      font: inherit; color: inherit; background: #fff; border: 1px solid #e4d8c4; border-radius: 8px; padding: 4px 6px;
+    }
+    .tuner .row { display: flex; gap: 6px; margin-top: 10px; }
+    .tuner .row button, .tuner-open {
+      padding: 6px 10px; border-radius: 999px; background: #fff; border: 1px solid #e4d8c4; cursor: pointer;
+    }
+    .tuner p { margin: 8px 0 0; color: #6d6256; }
+    body.is-debug { user-select: none; }
+    body.is-debug .seam { transition: none; }
+    body.is-debug .slip,
+    body.is-debug .pencil { pointer-events: auto; }
+    body.is-debug .slip,
+    body.is-debug .pencil,
+    body.is-debug .note,
+    body.is-debug .board,
+    body.is-debug .seam { cursor: move; }
+    body.is-debug img { -webkit-user-drag: none; }
+    .seam-handoff .pack.on,
+    .seam-handoff .pack.on * { pointer-events: none; }
+    body.is-debug .controls:not([data-view="main"]) .seam * { pointer-events: none; }
+    body.is-debug .controls[data-view="chat"] .seam-chat,
+    body.is-debug .controls[data-view="chat"] .seam-chat *,
+    body.is-debug .controls[data-view="handoff"] .seam-handoff,
+    body.is-debug .controls[data-view="handoff"] .seam-handoff *,
+    body.is-debug .controls[data-view="schedule"] .seam-schedule,
+    body.is-debug .controls[data-view="schedule"] .seam-schedule *,
+    body.is-debug .controls[data-view="project"] .seam-project,
+    body.is-debug .controls[data-view="project"] .seam-project * { pointer-events: auto; }
+    body.is-debug .controls[data-view="handoff"] .seam-handoff .pack.off,
+    body.is-debug .controls[data-view="handoff"] .seam-handoff .pack.off * { pointer-events: none; }
+    #xform { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
+    #xform[hidden] { display: none; }
+    .xform-box {
+      position: absolute; box-sizing: border-box;
+      outline: 1.5px solid #0b99ff; outline-offset: 0;
+      transform-origin: center center;
+    }
+    .xform-box span {
+      position: absolute; width: 11px; height: 11px;
+      background: #fff; border: 1.5px solid #0b99ff; border-radius: 1px;
+      pointer-events: auto; transform: translate(-50%, -50%);
+    }
+    .xform-box [data-handle="nw"] { left: 0; top: 0; }
+    .xform-box [data-handle="n"] { left: 50%; top: 0; }
+    .xform-box [data-handle="ne"] { left: 100%; top: 0; }
+    .xform-box [data-handle="e"] { left: 100%; top: 50%; }
+    .xform-box [data-handle="se"] { left: 100%; top: 100%; }
+    .xform-box [data-handle="s"] { left: 50%; top: 100%; }
+    .xform-box [data-handle="sw"] { left: 0; top: 100%; }
+    .xform-box [data-handle="w"] { left: 0; top: 50%; }
+    .xform-stem {
+      position: absolute; left: 50%; top: 0; width: 1.5px; height: 22px;
+      background: #0b99ff; transform: translate(-50%, -100%);
+    }
+    .xform-box [data-handle="rotate"] {
+      left: 50%; top: -22px; width: 13px; height: 13px; border-radius: 50%; cursor: grab;
+    }
+  </style>
+</head>
+<body>
+  <div class="desk"></div>
+  <div class="viewport">
+    <div class="stage" id="stage" data-view="main">
+      <section class="panel" data-panel="chat">
+        <img class="slip slip-left" data-piece="chat-slip-l" src="前端视觉素材/主界面/界面材质-纸2.png" alt="">
+        <img class="slip slip-right" data-piece="chat-slip-r" src="前端视觉素材/主界面/界面材质-纸3.png" alt="">
+        <div class="board" data-piece="chat-board">
+          <img class="grid" src="前端视觉素材/主界面/界面材质-网格纸.png" alt="">
+          <p class="note" data-piece="chat-note-1">策划：你好</p>
+          <p class="note" data-piece="chat-note-2">程序：你好</p>
+          <p class="note" data-piece="chat-note-3">美术：你好</p>
+          <p class="note" data-piece="chat-note-4">音乐：你好</p>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="handoff">
+        <img class="slip slip-left" data-piece="handoff-slip-l" src="前端视觉素材/主界面/界面材质-纸2.png" alt="">
+        <img class="slip slip-right" data-piece="handoff-slip-r" src="前端视觉素材/主界面/界面材质-纸1.png" alt="">
+        <div class="board" data-piece="handoff-board">
+          <img class="grid" src="前端视觉素材/主界面/界面材质-网格纸.png" alt="">
+        </div>
+      </section>
+
+      <section class="panel" data-panel="main">
+        <img class="slip slip-left" data-piece="main-slip-l" src="前端视觉素材/主界面/界面材质-纸2.png" alt="">
+        <img class="slip slip-right" data-piece="main-slip-r" src="前端视觉素材/主界面/界面材质-纸3.png" alt="">
+        <div class="board" data-piece="main-board">
+          <img class="grid" src="前端视觉素材/主界面/界面材质-网格纸.png" alt="">
+          <p class="note" data-piece="main-note-1">原神牛逼</p>
+          <p class="note" data-piece="main-note-2">原神不牛逼</p>
+          <img class="pencil" data-piece="main-pencil" src="前端视觉素材/主界面/编辑主界面按钮1.png" alt="">
+        </div>
+      </section>
+
+      <section class="panel" data-panel="schedule">
+        <img class="slip slip-left" data-piece="schedule-slip-l" src="前端视觉素材/主界面/界面材质-纸1.png" alt="">
+        <img class="slip slip-right" data-piece="schedule-slip-r" src="前端视觉素材/主界面/界面材质-纸3.png" alt="">
+        <div class="board" data-piece="schedule-board">
+          <img class="grid" src="前端视觉素材/主界面/界面材质-网格纸.png" alt="">
+          <p class="note" data-piece="schedule-note-1">日程表</p>
+          <p class="note" data-piece="schedule-note-2">该功能还未开发</p>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="project">
+        <img class="slip slip-left" data-piece="project-slip-l" src="前端视觉素材/主界面/界面材质-纸2.png" alt="">
+        <img class="slip slip-right" data-piece="project-slip-r" src="前端视觉素材/主界面/界面材质-纸3.png" alt="">
+        <div class="board" data-piece="project-board">
+          <img class="grid" src="前端视觉素材/主界面/界面材质-网格纸.png" alt="">
+        </div>
+      </section>
+
+    </div>
+  </div>
+  <div class="controls" id="controls" data-view="main">
+    <button class="seam seam-chat" type="button" data-go="chat" aria-label="聊天">
+      <img class="off" src="前端视觉素材/侧边栏按钮/侧边按钮-临时聊天1 .png" alt="">
+      <img class="on" src="前端视觉素材/侧边栏按钮/侧边按钮-临时聊天2 .png" alt="">
+    </button>
+      <button class="seam seam-handoff" type="button" data-go="handoff" aria-label="交接卡">
+        <span class="pack off">
+          <img data-layer="0" src="前端视觉素材/侧边栏按钮/侧边按钮-交接区1 .png" alt="">
+          <img data-layer="1" src="前端视觉素材/侧边栏按钮/侧边按钮-交接区1 .png" alt="">
+          <img data-layer="2" src="前端视觉素材/侧边栏按钮/侧边按钮-交接区1 .png" alt="">
+        </span>
+        <span class="pack on">
+          <img data-layer="0" src="前端视觉素材/侧边栏按钮/侧边按钮-交接区2 .png" alt="">
+          <img data-layer="1" src="前端视觉素材/侧边栏按钮/侧边按钮-交接区2 .png" alt="">
+          <img data-layer="2" src="前端视觉素材/侧边栏按钮/侧边按钮-交接区2 .png" alt="">
+        </span>
+      </button>
+    <button class="seam seam-schedule" type="button" data-go="schedule" aria-label="日程">
+      <img class="off" src="前端视觉素材/侧边栏按钮/侧边按钮-日程区1 .png" alt="">
+      <img class="on" src="前端视觉素材/侧边栏按钮/侧边按钮-日程区2 .png" alt="">
+    </button>
+    <button class="seam seam-project" type="button" data-go="project" aria-label="项目管理">
+      <img class="off" src="前端视觉素材/侧边栏按钮/侧边按钮-管理区1 .png" alt="">
+      <img class="on" src="前端视觉素材/侧边栏按钮/侧边按钮-管理区2  .png" alt="">
+    </button>
+  </div>
+  <button class="tuner-open" id="tuner-open" type="button">调试</button>
+  <aside class="tuner" id="tuner" hidden>
+    <h2 id="tuner-drag" title="拖动这里移动窗口">界面调试</h2>
+    <label>类型
+      <select id="tuner-kind">
+        <option value="button">侧边按钮</option>
+        <option value="pack">卡包叠放</option>
+        <option value="piece">界面里的块</option>
+      </select>
+      <span></span>
+    </label>
+    <label>对象
+      <select id="tuner-target"></select>
+      <span></span>
+    </label>
+    <label id="tuner-pose-row">位置
+      <select id="tuner-pose">
+        <option value="home">主界面时</option>
+        <option value="away">进入该模块后</option>
+      </select>
+      <span></span>
+    </label>
+    <label><span id="lab-x">X</span> <input id="tuner-x" type="range" min="-40" max="120" step="0.1" value="0"><input id="tuner-xn" type="number" step="0.1"></label>
+    <label><span id="lab-y">Y</span> <input id="tuner-y" type="range" min="-40" max="120" step="0.1" value="0"><input id="tuner-yn" type="number" step="0.1"></label>
+    <label><span id="lab-w">宽度</span> <input id="tuner-w" type="range" min="40" max="900" step="1" value="200"><input id="tuner-wn" type="number" step="1"></label>
+    <label><span id="lab-r">角度</span> <input id="tuner-r" type="range" min="-180" max="180" step="1" value="0"><input id="tuner-rn" type="number" step="1"></label>
+    <label>图层 <input id="tuner-z" type="number" step="1" value="1"><span></span></label>
+    <div class="row">
+      <button id="tuner-back" type="button">下移一层</button>
+      <button id="tuner-front" type="button">上移一层</button>
+    </div>
+    <div class="row">
+      <button id="tuner-save" type="button">保存代码</button>
+      <button id="tuner-reset" type="button">恢复初始</button>
+    </div>
+    <p id="tuner-hint"></p>
+    <p id="tuner-status">改完点保存，把下载的 视觉布局.json 发给我合并。</p>
+  </aside>
+  <div id="xform" hidden>
+    <div class="xform-box" id="xform-box">
+      <i class="xform-stem"></i>
+      <span data-handle="nw"></span>
+      <span data-handle="n"></span>
+      <span data-handle="ne"></span>
+      <span data-handle="e"></span>
+      <span data-handle="se"></span>
+      <span data-handle="s"></span>
+      <span data-handle="sw"></span>
+      <span data-handle="w"></span>
+      <span data-handle="rotate" title="角度"></span>
+    </div>
+  </div>
+  <script>
+    const DEFAULT_BUTTONS = {
+      chat: {
+        z: 1,
+        home: { x: 55.5, y: -19.4, w: 533, r: 11 },
+        away: { x: 39, y: 69.2, w: 600, r: -8 }
+      },
+      handoff: {
+        z: 2,
+        home: { x: -6.1, y: 23.7, w: 340, r: 7 },
+        away: { x: 84.7, y: 23.7, w: 340, r: -12 }
+      },
+      schedule: {
+        z: 3,
+        home: { x: 87.4, y: 9.4, w: 590, r: -2 },
+        away: { x: -10, y: 8, w: 600, r: 7 }
+      },
+      project: {
+        z: 4,
+        home: { x: 33.4, y: 74.8, w: 621, r: 9 },
+        away: { x: 36.8, y: -18.9, w: 630, r: 47 }
+      }
+    };
+    const DEFAULT_PACK = [
+      { x: -6, y: -7, w: 100, r: -11, z: 1 },
+      { x: 0, y: 0, w: 100, r: 0, z: 2 },
+      { x: 7, y: 8, w: 100, r: 11, z: 3 }
+    ];
+    const DEFAULT_PIECES = {
+      "main-board": { x: 25.7, y: -3.8, w: 45.4, r: 0, z: 3 },
+      "main-slip-l": { x: 78.9, y: 84.6, w: 22, r: 0, z: 1 },
+      "main-slip-r": { x: 29.1, y: -3.3, w: 45, r: 90, z: 2 },
+      "main-note-1": { x: 22.4, y: 29.1, w: 37.7, r: 0, z: 1 },
+      "main-note-2": { x: 30.1, y: 44.5, w: 42, r: 0, z: 2 },
+      "main-pencil": { x: 89.1, y: 40.7, w: 28, r: 10, z: 3 },
+      "chat-board": { x: 29.5, y: -7.5, w: 42.9, r: -7, z: 3 },
+      "chat-slip-l": { x: 78.6, y: 16.5, w: 16.9, r: 0, z: 1 },
+      "chat-slip-r": { x: 29.8, y: -14.3, w: 47.8, r: 90, z: 2 },
+      "chat-note-1": { x: 16, y: 16, w: 42, r: 0, z: 1 },
+      "chat-note-2": { x: 46, y: 30, w: 42, r: 0, z: 2 },
+      "chat-note-3": { x: 14, y: 46, w: 42, r: 0, z: 3 },
+      "chat-note-4": { x: 18, y: 62, w: 42, r: 0, z: 4 },
+      "handoff-board": { x: 30.6, y: -5.8, w: 44.8, r: -2, z: 3 },
+      "handoff-slip-l": { x: 4, y: 14, w: 16.9, r: 0, z: 1 },
+      "handoff-slip-r": { x: 14.1, y: 10.6, w: 64.7, r: 0, z: 2 },
+      "schedule-board": { x: 30.7, y: 10.5, w: 38.5, r: 0, z: 3 },
+      "schedule-slip-l": { x: 4, y: 14, w: 16.9, r: 0, z: 1 },
+      "schedule-slip-r": { x: 78.1, y: 18, w: 16.9, r: 0, z: 2 },
+      "schedule-note-1": { x: 28, y: 14, w: 42, r: 0, z: 1 },
+      "schedule-note-2": { x: 34, y: 48, w: 42, r: 0, z: 2 },
+      "project-board": { x: 27, y: -5.4, w: 44.8, r: -7, z: 3 },
+      "project-slip-l": { x: 74.3, y: 17, w: 16.9, r: 0, z: 1 },
+      "project-slip-r": { x: 74.6, y: 37.6, w: 16.9, r: 0, z: 2 }
+    };
+    const PIECE_LABEL = {
+      "main-board": "主界面 · 网格纸",
+      "main-slip-l": "主界面 · 左纸条",
+      "main-slip-r": "主界面 · 右纸条",
+      "main-note-1": "主界面 · 便签 原神牛逼",
+      "main-note-2": "主界面 · 便签 原神不牛逼",
+      "main-pencil": "主界面 · 铅笔",
+      "chat-board": "聊天 · 网格纸",
+      "chat-slip-l": "聊天 · 左纸条",
+      "chat-slip-r": "聊天 · 右纸条",
+      "chat-note-1": "聊天 · 便签 策划",
+      "chat-note-2": "聊天 · 便签 程序",
+      "chat-note-3": "聊天 · 便签 美术",
+      "chat-note-4": "聊天 · 便签 音乐",
+      "handoff-board": "交接卡 · 网格纸",
+      "handoff-slip-l": "交接卡 · 左纸条",
+      "handoff-slip-r": "交接卡 · 右纸条",
+      "schedule-board": "日程 · 网格纸",
+      "schedule-slip-l": "日程 · 左纸条",
+      "schedule-slip-r": "日程 · 右纸条",
+      "schedule-note-1": "日程 · 便签 日程表",
+      "schedule-note-2": "日程 · 便签 未开发",
+      "project-board": "项目管理 · 网格纸",
+      "project-slip-l": "项目管理 · 左纸条",
+      "project-slip-r": "项目管理 · 右纸条"
+    };
+    const BUTTON_OPTIONS = [
+      ["chat", "信封 · 聊天"],
+      ["handoff", "卡包 · 交接卡"],
+      ["schedule", "日历 · 日程"],
+      ["project", "笔袋 · 项目管理"]
+    ];
+    const PACK_OPTIONS = [
+      ["0", "后面一张"],
+      ["1", "中间一张"],
+      ["2", "前面一张"]
+    ];
+    const RANGES = {
+      button: { x: [-40, 120, 0.1, "X vw"], y: [-40, 120, 0.1, "Y vh"], w: [40, 900, 1, "宽度 px"], r: [-180, 180, 1, "角度"] },
+      pack: { x: [-40, 40, 0.1, "X %"], y: [-40, 40, 0.1, "Y %"], w: [40, 160, 1, "大小 %"], r: [-180, 180, 1, "角度"] },
+      piece: { x: [-40, 140, 0.1, "X %"], y: [-40, 140, 0.1, "Y %"], w: [4, 100, 0.1, "宽度 %"], r: [-180, 180, 1, "角度"] }
+    };
+
+    const stage = document.getElementById("stage");
+    const controls = document.getElementById("controls");
+    const tuner = document.getElementById("tuner");
+    const kindEl = document.getElementById("tuner-kind");
+    const targetEl = document.getElementById("tuner-target");
+    const poseEl = document.getElementById("tuner-pose");
+    const poseRow = document.getElementById("tuner-pose-row");
+    let layout = freshLayout();
+    let current = "main";
+    let moving = false;
+    let unlockTimer = 0;
+
+    function round1(n) { return Math.round(n * 10) / 10; }
+
+    function freshLayout() {
+      return {
+        buttons: JSON.parse(JSON.stringify(DEFAULT_BUTTONS)),
+        pack: JSON.parse(JSON.stringify(DEFAULT_PACK)),
+        pieces: JSON.parse(JSON.stringify(DEFAULT_PIECES))
+      };
+    }
+
+    function finishMove() { moving = false; }
+
+    function poseName(name) {
+      return current === name ? "away" : "home";
+    }
+
+    function applyButtons(animate) {
+      if (animate) {
+        controls.classList.remove("is-tuning");
+        void controls.offsetWidth;
+      } else {
+        controls.classList.add("is-tuning");
+      }
+      Object.keys(layout.buttons).forEach((name) => {
+        const button = controls.querySelector(".seam-" + name);
+        const pose = layout.buttons[name][poseName(name)];
+        button.style.left = pose.x + "vw";
+        button.style.right = "auto";
+        button.style.top = pose.y + "vh";
+        button.style.bottom = "auto";
+        button.style.width = pose.w + "px";
+        button.style.transform = "rotate(" + pose.r + "deg)";
+        button.style.zIndex = String(layout.buttons[name].z);
+      });
+    }
+
+    function applyPack() {
+      document.querySelectorAll(".seam-handoff .pack").forEach((pack) => {
+        layout.pack.forEach((layer, index) => {
+          const img = pack.querySelector('[data-layer="' + index + '"]');
+          img.style.width = layer.w + "%";
+          img.style.zIndex = String(layer.z);
+          img.style.transform = "translate(" + layer.x + "%, " + layer.y + "%) rotate(" + layer.r + "deg)";
+        });
+      });
+    }
+
+    function applyPieces() {
+      Object.keys(layout.pieces).forEach((id) => {
+        const el = document.querySelector('[data-piece="' + id + '"]');
+        if (!el) return;
+        const item = layout.pieces[id];
+        el.style.left = item.x + "%";
+        el.style.top = item.y + "%";
+        el.style.right = "auto";
+        el.style.bottom = "auto";
+        el.style.width = item.w + "%";
+        el.style.zIndex = String(item.z);
+        el.style.transform = "rotate(" + item.r + "deg)";
+      });
+    }
+
+    function applyAll(animate) {
+      applyButtons(animate);
+      applyPack();
+      applyPieces();
+      markSelected();
+    }
+
+    function currentSpot() {
+      const kind = kindEl.value;
+      const id = targetEl.value;
+      if (kind === "button") return layout.buttons[id][poseEl.value];
+      if (kind === "pack") return layout.pack[Number(id)];
+      return layout.pieces[id];
+    }
+
+    function currentLayer() {
+      const kind = kindEl.value;
+      const id = targetEl.value;
+      if (kind === "button") return layout.buttons[id];
+      if (kind === "pack") return layout.pack[Number(id)];
+      return layout.pieces[id];
+    }
+
+    function layerGroup() {
+      const kind = kindEl.value;
+      const id = targetEl.value;
+      if (kind === "button") return Object.keys(layout.buttons).map((name) => layout.buttons[name]);
+      if (kind === "pack") return layout.pack;
+      const el = document.querySelector('[data-piece="' + id + '"]');
+      if (!el || !el.parentElement) return [layout.pieces[id]];
+      return [...el.parentElement.querySelectorAll(":scope > [data-piece]")]
+        .map((node) => layout.pieces[node.dataset.piece])
+        .filter(Boolean);
+    }
+
+    function shiftLayer(dir) {
+      const item = currentLayer();
+      if (!item) return;
+      const ahead = layerGroup()
+        .filter((other) => other !== item && (dir > 0 ? other.z > item.z : other.z < item.z))
+        .sort((a, b) => dir > 0 ? a.z - b.z : b.z - a.z);
+      if (ahead[0]) {
+        const next = ahead[0].z;
+        ahead[0].z = item.z;
+        item.z = next;
+      } else {
+        item.z += dir;
+      }
+      localStorage.setItem("visual-layout-v3", JSON.stringify(layout));
+      applyAll(false);
+      readTuner();
+    }
+
+    function readTuner() {
+      const item = currentSpot();
+      if (!item) return;
+      document.getElementById("tuner-x").value = item.x;
+      document.getElementById("tuner-xn").value = item.x;
+      document.getElementById("tuner-y").value = item.y;
+      document.getElementById("tuner-yn").value = item.y;
+      document.getElementById("tuner-w").value = item.w;
+      document.getElementById("tuner-wn").value = item.w;
+      document.getElementById("tuner-r").value = item.r;
+      document.getElementById("tuner-rn").value = item.r;
+      const layer = currentLayer();
+      document.getElementById("tuner-z").value = layer && layer.z != null ? layer.z : 0;
+      markSelected();
+    }
+
+    function writeTuner(key, value) {
+      frameHeld = false;
+      const item = currentSpot();
+      if (!item) return;
+      item[key] = Number(value);
+      localStorage.setItem("visual-layout-v3", JSON.stringify(layout));
+      applyAll(false);
+      readTuner();
+    }
+
+    function layoutFile() {
+      return {
+        note: "视觉前端布局。按钮、卡包叠放、界面里的纸和便签。背景不在这里。交给助手合并进 视觉前端.html，不改切换功能。",
+        buttons: layout.buttons,
+        pack: layout.pack,
+        pieces: layout.pieces
+      };
+    }
+
+    function panelOf(id) {
+      return id.split("-")[0];
+    }
+
+    function showPanel(name) {
+      if (current === name) return;
+      current = name;
+      stage.dataset.view = name;
+      controls.dataset.view = name;
+      moving = true;
+      clearTimeout(unlockTimer);
+      unlockTimer = setTimeout(finishMove, 1000);
+      applyButtons(true);
+    }
+
+    function revealButton(name) {
+      if (current === "main" || current === name) return;
+      showPanel("main");
+    }
+
+    function updateHint() {
+      const hint = document.getElementById("tuner-hint");
+      const kind = kindEl.value;
+      let where = "这块铺在当前界面上，百分比相对这个界面。";
+      if (kind === "button") where = "侧边按钮。X、Y 相对整个屏幕，宽度是像素。";
+      else if (kind === "pack") where = "这张卡包相对交接按钮。后面一张在左上，前面一张在右下。";
+      else if (targetEl.value.includes("note") || targetEl.value.includes("pencil")) where = "这块在网格纸里面，百分比相对这张纸。";
+      hint.textContent = "点画面里的元素即可选中。拖动改位置，拖方框边缘改大小，拖上方圆点改角度。按住 Shift 时角度按 15° 跳。" + where + "背景不能改。";
+    }
+
+    function applyRange(kind) {
+      const spec = RANGES[kind];
+      ["x", "y", "w", "r"].forEach((key) => {
+        const [min, max, step, label] = spec[key];
+        const range = document.getElementById("tuner-" + key);
+        range.min = String(min);
+        range.max = String(max);
+        range.step = String(step);
+        document.getElementById("tuner-" + key + "n").step = String(step);
+        document.getElementById("lab-" + key).textContent = label;
+      });
+    }
+
+    function fillTargets(options) {
+      const reveal = !options || options.reveal !== false;
+      const kind = kindEl.value;
+      const previous = options && options.keep ? options.keep : targetEl.value;
+      const list = kind === "button" ? BUTTON_OPTIONS : kind === "pack" ? PACK_OPTIONS : pieceOptions();
+      targetEl.innerHTML = "";
+      list.forEach(([value, label]) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        targetEl.appendChild(option);
+      });
+      if ([...targetEl.options].some((option) => option.value === previous)) targetEl.value = previous;
+      poseRow.hidden = kind !== "button";
+      applyRange(kind);
+      if (reveal && kind === "piece") showPanel(panelOf(targetEl.value));
+      if (reveal && kind === "button") revealButton(targetEl.value);
+      if (reveal && kind === "pack") revealButton("handoff");
+      updateHint();
+      readTuner();
+    }
+
+    function pieceOptions() {
+      const order = ["main", "chat", "handoff", "schedule", "project"];
+      return [...document.querySelectorAll("[data-piece]")]
+        .map((el) => el.dataset.piece)
+        .sort((a, b) => order.indexOf(panelOf(a)) - order.indexOf(panelOf(b)))
+        .map((id) => [id, PIECE_LABEL[id] || id]);
+    }
+
+    let frameHeld = false;
+    let gesture = null;
+    const DIR = {
+      nw: [-1, -1], n: [0, -1], ne: [1, -1],
+      e: [1, 0], se: [1, 1], s: [0, 1],
+      sw: [-1, 1], w: [-1, 0]
+    };
+    const OPP = { nw: "se", n: "s", ne: "sw", e: "w", se: "nw", s: "n", sw: "ne", w: "e" };
+
+    function ownRotation(node) {
+      const value = getComputedStyle(node).transform;
+      if (!value || value === "none") return 0;
+      const matrix = new DOMMatrix(value);
+      return Math.atan2(matrix.b, matrix.a) * 180 / Math.PI;
+    }
+
+    function screenRotation(el) {
+      let angle = 0;
+      let node = el;
+      while (node && node !== document.documentElement) {
+        angle += ownRotation(node);
+        node = node.parentElement;
+      }
+      return angle;
+    }
+
+    function screenDeltaToLocal(dx, dy, rotationDeg) {
+      const a = -rotationDeg * Math.PI / 180;
+      return {
+        x: dx * Math.cos(a) - dy * Math.sin(a),
+        y: dx * Math.sin(a) + dy * Math.cos(a)
+      };
+    }
+
+    function centerOf(el) {
+      const rect = el.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    }
+
+    function handleScreen(el, handle) {
+      const center = centerOf(el);
+      const rot = screenRotation(el) * Math.PI / 180;
+      const lx = DIR[handle][0] * el.offsetWidth / 2;
+      const ly = DIR[handle][1] * el.offsetHeight / 2;
+      return {
+        x: center.x + lx * Math.cos(rot) - ly * Math.sin(rot),
+        y: center.y + lx * Math.sin(rot) + ly * Math.cos(rot)
+      };
+    }
+
+    function selectedElement() {
+      if (tuner.hidden) return null;
+      const kind = kindEl.value;
+      const id = targetEl.value;
+      if (kind === "button") return controls.querySelector(".seam-" + id);
+      if (kind === "pack") {
+        const which = current === "handoff" ? ".pack.on" : ".pack.off";
+        return document.querySelector(".seam-handoff " + which + ' [data-layer="' + id + '"]');
+      }
+      const el = document.querySelector('[data-piece="' + id + '"]');
+      if (!el) return null;
+      const panel = el.closest("[data-panel]");
+      if (panel && panel.dataset.panel !== current) return null;
+      return el;
+    }
+
+    function tuneSpace(el, kind) {
+      if (kind === "button") return { rot: 0, w: window.innerWidth, h: window.innerHeight };
+      if (kind === "pack") return { rot: screenRotation(el.closest(".seam")), w: el.offsetWidth, h: el.offsetHeight };
+      const parent = el.offsetParent || el.parentElement;
+      return { rot: screenRotation(parent), w: parent.offsetWidth, h: parent.offsetHeight };
+    }
+
+    function handleCursor(handle, rotation) {
+      if (handle === "rotate") return "grab";
+      const base = { n: 0, ne: 45, e: 90, se: 135, s: 180, sw: 225, w: 270, nw: 315 }[handle];
+      const turned = ((base + rotation) % 180 + 180) % 180;
+      return ["ns-resize", "nesw-resize", "ew-resize", "nwse-resize"][Math.round(turned / 45) % 4];
+    }
+
+    function syncFrame() {
+      const xform = document.getElementById("xform");
+      const el = !frameHeld && document.body.classList.contains("is-debug") ? selectedElement() : null;
+      if (!el || el.offsetWidth < 2) {
+        xform.hidden = true;
+        return;
+      }
+      const center = centerOf(el);
+      const rot = screenRotation(el);
+      const box = document.getElementById("xform-box");
+      box.style.width = el.offsetWidth + "px";
+      box.style.height = el.offsetHeight + "px";
+      box.style.left = center.x + "px";
+      box.style.top = center.y + "px";
+      box.style.transform = "translate(-50%, -50%) rotate(" + rot + "deg)";
+      box.querySelectorAll("[data-handle]").forEach((handle) => {
+        handle.style.cursor = handleCursor(handle.dataset.handle, rot);
+      });
+      xform.hidden = false;
+    }
+
+    function markSelected() {
+      syncFrame();
+    }
+
+    function normDeg(deg) {
+      let value = Math.round(deg) % 360;
+      if (value > 180) value -= 360;
+      if (value < -180) value += 360;
+      return value;
+    }
+
+    function hitTarget(clientX, clientY) {
+      for (const node of document.elementsFromPoint(clientX, clientY)) {
+        if (node.closest("#tuner, #tuner-open, #xform")) continue;
+        const layer = node.closest(".seam-handoff [data-layer]");
+        if (layer) {
+          const pack = layer.closest(".pack");
+          const wantOn = current === "handoff";
+          if (pack.classList.contains("on") !== wantOn) continue;
+          return { kind: "pack", id: layer.dataset.layer };
+        }
+        const piece = node.closest("[data-piece]");
+        if (piece) {
+          const panel = piece.closest("[data-panel]");
+          if (panel && panel.dataset.panel !== current) continue;
+          return { kind: "piece", id: piece.dataset.piece };
+        }
+        const seam = node.closest(".seam");
+        if (seam && getComputedStyle(seam).pointerEvents !== "none" && getComputedStyle(seam).opacity !== "0") {
+          return { kind: "button", id: seam.dataset.go };
+        }
+      }
+      return null;
+    }
+
+    function selectFromCanvas(kind, id) {
+      frameHeld = false;
+      if (kindEl.value !== kind) {
+        kindEl.value = kind;
+        fillTargets({ reveal: false, keep: id });
+      }
+      if (targetEl.value !== id) targetEl.value = id;
+      if (kind === "button") poseEl.value = poseName(id);
+      updateHint();
+      readTuner();
+    }
+
+    function resizeScale(local) {
+      const handle = gesture.mode;
+      const hx = DIR[handle][0];
+      const hy = DIR[handle][1];
+      const halfW = gesture.startW / 2;
+      const halfH = gesture.startH / 2;
+      if (hx !== 0 && hy !== 0) {
+        const startDist = Math.hypot(gesture.startW, gesture.startH);
+        const px = hx * halfW + local.x;
+        const py = hy * halfH + local.y;
+        const next = Math.hypot(px - (-hx * halfW), py - (-hy * halfH));
+        return next / startDist;
+      }
+      if (hx !== 0) return (hx * halfW + local.x) / (hx * halfW);
+      return (hy * halfH + local.y) / (hy * halfH);
+    }
+
+    function applyResize(item, scale) {
+      const start = gesture.startItem;
+      const min = gesture.kind === "button" ? 40 : gesture.kind === "pack" ? 20 : 4;
+      const max = gesture.kind === "button" ? 1200 : gesture.kind === "pack" ? 220 : 160;
+      const next = Math.min(max, Math.max(min, start.w * scale));
+      item.w = gesture.kind === "button" ? Math.round(next) : round1(next);
+      item.x = start.x;
+      item.y = start.y;
+      applyAll(false);
+      const el = selectedElement();
+      if (!el) return;
+      const now = gesture.fromCenter ? centerOf(el) : handleScreen(el, OPP[gesture.mode]);
+      const goal = gesture.fromCenter ? gesture.center : gesture.anchor;
+      const errX = goal.x - now.x;
+      const errY = goal.y - now.y;
+      const localErr = screenDeltaToLocal(errX, errY, gesture.parentRot);
+      if (gesture.kind === "button") {
+        item.x = round1(item.x + errX / window.innerWidth * 100);
+        item.y = round1(item.y + errY / window.innerHeight * 100);
+      } else if (gesture.kind === "pack") {
+        item.x = round1(item.x + localErr.x / el.offsetWidth * 100);
+        item.y = round1(item.y + localErr.y / el.offsetHeight * 100);
+      } else {
+        item.x = round1(item.x + localErr.x / gesture.parentW * 100);
+        item.y = round1(item.y + localErr.y / gesture.parentH * 100);
+      }
+    }
+
+    function beginGesture(event, mode) {
+      const el = selectedElement();
+      const item = currentSpot();
+      if (!el || !item) return;
+      const space = tuneSpace(el, kindEl.value);
+      gesture = {
+        pointerId: event.pointerId,
+        mode,
+        kind: kindEl.value,
+        startX: event.clientX,
+        startY: event.clientY,
+        startItem: { x: item.x, y: item.y, w: item.w, r: item.r },
+        startW: el.offsetWidth,
+        startH: Math.max(el.offsetHeight, 1),
+        parentRot: space.rot,
+        parentW: space.w,
+        parentH: space.h,
+        anchor: mode !== "move" && mode !== "rotate" ? handleScreen(el, OPP[mode]) : null,
+        center: centerOf(el),
+        fromCenter: false,
+        moved: false
+      };
+    }
+
+    function onPointerMove(event) {
+      if (!gesture || event.pointerId !== gesture.pointerId) return;
+      const dx = event.clientX - gesture.startX;
+      const dy = event.clientY - gesture.startY;
+      if (gesture.mode === "move" && !gesture.moved && Math.hypot(dx, dy) < 3) return;
+      gesture.moved = true;
+      const item = currentSpot();
+      const start = gesture.startItem;
+      if (gesture.mode === "move") {
+        const local = screenDeltaToLocal(dx, dy, gesture.parentRot);
+        if (gesture.kind === "button") {
+          item.x = round1(start.x + dx / window.innerWidth * 100);
+          item.y = round1(start.y + dy / window.innerHeight * 100);
+        } else if (gesture.kind === "pack") {
+          item.x = round1(start.x + local.x / gesture.startW * 100);
+          item.y = round1(start.y + local.y / gesture.startH * 100);
+        } else {
+          item.x = round1(start.x + local.x / gesture.parentW * 100);
+          item.y = round1(start.y + local.y / gesture.parentH * 100);
+        }
+      } else if (gesture.mode === "rotate") {
+        const el = selectedElement();
+        const center = el ? centerOf(el) : gesture.center;
+        let deg = Math.atan2(event.clientY - center.y, event.clientX - center.x) * 180 / Math.PI + 90;
+        if (event.shiftKey) deg = Math.round(deg / 15) * 15;
+        item.r = normDeg(deg);
+        document.body.style.cursor = "grabbing";
+      } else {
+        gesture.fromCenter = event.altKey;
+        const local = screenDeltaToLocal(dx, dy, gesture.parentRot + start.r);
+        applyResize(item, resizeScale(local));
+      }
+      applyAll(false);
+      readTuner();
+    }
+
+    function onPointerUp(event) {
+      if (!gesture || event.pointerId !== gesture.pointerId) return;
+      if (gesture.moved) localStorage.setItem("visual-layout-v3", JSON.stringify(layout));
+      gesture = null;
+      document.body.style.cursor = "";
+    }
+
+    document.addEventListener("pointerdown", (event) => {
+      if (!document.body.classList.contains("is-debug") || event.button !== 0) return;
+      if (event.target.closest("#tuner, #tuner-open")) return;
+      const handle = event.target.closest("#xform [data-handle]");
+      if (handle) {
+        event.preventDefault();
+        event.stopPropagation();
+        beginGesture(event, handle.dataset.handle);
+        return;
+      }
+      const hit = hitTarget(event.clientX, event.clientY);
+      if (!hit) {
+        frameHeld = true;
+        syncFrame();
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      selectFromCanvas(hit.kind, hit.id);
+      beginGesture(event, "move");
+    }, true);
+
+    document.addEventListener("click", (event) => {
+      if (!document.body.classList.contains("is-debug")) return;
+      if (event.target.closest("#tuner, #tuner-open")) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("resize", syncFrame);
+
+    function mergeLayout(saved) {
+      const base = freshLayout();
+      if (!saved || typeof saved !== "object") return base;
+      if (saved.buttons) {
+        Object.keys(base.buttons).forEach((name) => {
+          if (!saved.buttons[name]) return;
+          if (typeof saved.buttons[name].z === "number") base.buttons[name].z = saved.buttons[name].z;
+          ["home", "away"].forEach((pose) => {
+            if (saved.buttons[name][pose]) {
+              base.buttons[name][pose] = { ...base.buttons[name][pose], ...saved.buttons[name][pose] };
+            }
+          });
+        });
+      }
+      if (Array.isArray(saved.pack)) {
+        saved.pack.forEach((layer, index) => {
+          if (base.pack[index] && layer) base.pack[index] = { ...base.pack[index], ...layer };
+        });
+      }
+      if (saved.pieces) {
+        Object.keys(base.pieces).forEach((id) => {
+          if (saved.pieces[id]) base.pieces[id] = { ...base.pieces[id], ...saved.pieces[id] };
+        });
+      }
+      return base;
+    }
+
+    stage.addEventListener("transitionend", (event) => {
+      if (event.target === stage && event.propertyName === "transform") {
+        finishMove();
+        syncFrame();
+      }
+    });
+    controls.addEventListener("transitionend", (event) => {
+      if (event.propertyName === "left" || event.propertyName === "top" || event.propertyName === "transform") syncFrame();
+    });
+
+    controls.querySelectorAll(".seam").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (document.body.classList.contains("is-debug")) return;
+        if (moving) return;
+        const target = button.dataset.go;
+        if (current !== "main" && current !== target) return;
+        const next = current === target ? "main" : target;
+        if (next === current) return;
+        moving = true;
+        clearTimeout(unlockTimer);
+        unlockTimer = setTimeout(finishMove, 1000);
+        current = next;
+        stage.dataset.view = next;
+        controls.dataset.view = next;
+        applyButtons(true);
+        if (kindEl.value === "button" && targetEl.value === target) {
+          poseEl.value = next === "main" ? "home" : "away";
+          readTuner();
+        }
+        if (kindEl.value === "piece" && panelOf(targetEl.value) !== next && next !== "main") {
+          markSelected();
+        }
+      });
+    });
+
+    document.getElementById("tuner-open").addEventListener("click", () => {
+      const open = tuner.hidden;
+      tuner.hidden = !open;
+      document.body.classList.toggle("is-debug", open);
+      document.getElementById("tuner-open").textContent = open ? "完成" : "调试";
+      frameHeld = false;
+      if (!open) gesture = null;
+      syncFrame();
+    });
+    kindEl.addEventListener("change", () => {
+      frameHeld = false;
+      fillTargets();
+    });
+    targetEl.addEventListener("change", () => {
+      frameHeld = false;
+      if (kindEl.value === "button") {
+        poseEl.value = current === targetEl.value ? "away" : "home";
+        revealButton(targetEl.value);
+      }
+      if (kindEl.value === "pack") revealButton("handoff");
+      if (kindEl.value === "piece") showPanel(panelOf(targetEl.value));
+      updateHint();
+      readTuner();
+    });
+    poseEl.addEventListener("change", readTuner);
+    document.getElementById("tuner-z").addEventListener("input", (event) => {
+      const layer = currentLayer();
+      const value = Number(event.target.value);
+      if (!layer || !Number.isFinite(value)) return;
+      layer.z = value;
+      localStorage.setItem("visual-layout-v3", JSON.stringify(layout));
+      applyAll(false);
+    });
+    document.getElementById("tuner-front").addEventListener("click", () => shiftLayer(1));
+    document.getElementById("tuner-back").addEventListener("click", () => shiftLayer(-1));
+    const tunerDrag = document.getElementById("tuner-drag");
+    let panelDrag = null;
+    tunerDrag.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const rect = tuner.getBoundingClientRect();
+      panelDrag = { id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+      tunerDrag.setPointerCapture(event.pointerId);
+      tuner.classList.add("is-dragging");
+    });
+    tunerDrag.addEventListener("pointermove", (event) => {
+      if (!panelDrag || event.pointerId !== panelDrag.id) return;
+      const x = Math.min(window.innerWidth - 48, Math.max(0, event.clientX - panelDrag.dx));
+      const y = Math.min(window.innerHeight - 48, Math.max(0, event.clientY - panelDrag.dy));
+      tuner.style.left = x + "px";
+      tuner.style.top = y + "px";
+      tuner.style.maxHeight = Math.max(160, window.innerHeight - y - 12) + "px";
+    });
+    function endPanelDrag(event) {
+      if (!panelDrag || event.pointerId !== panelDrag.id) return;
+      panelDrag = null;
+      tuner.classList.remove("is-dragging");
+    }
+    tunerDrag.addEventListener("pointerup", endPanelDrag);
+    tunerDrag.addEventListener("pointercancel", endPanelDrag);
+    [["tuner-x", "tuner-xn", "x"], ["tuner-y", "tuner-yn", "y"], ["tuner-w", "tuner-wn", "w"], ["tuner-r", "tuner-rn", "r"]].forEach(([range, number, key]) => {
+      document.getElementById(range).addEventListener("input", (event) => writeTuner(key, event.target.value));
+      document.getElementById(number).addEventListener("input", (event) => writeTuner(key, event.target.value));
+    });
+    document.getElementById("tuner-save").addEventListener("click", async () => {
+      const text = JSON.stringify(layoutFile(), null, 2);
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+      link.download = "视觉布局.json";
+      link.click();
+      URL.revokeObjectURL(link.href);
+      const status = document.getElementById("tuner-status");
+      try {
+        await navigator.clipboard.writeText(text);
+        status.textContent = "已下载 视觉布局.json，并复制到剪贴板。把这个文件发给我即可。";
+      } catch (error) {
+        status.textContent = "已下载 视觉布局.json。把这个文件发给我即可。";
+      }
+    });
+    document.getElementById("tuner-reset").addEventListener("click", () => {
+      frameHeld = false;
+      layout = freshLayout();
+      localStorage.removeItem("visual-layout-v3");
+      applyAll(false);
+      readTuner();
+      syncFrame();
+      document.getElementById("tuner-status").textContent = "已恢复初始布局。";
+    });
+
+    try {
+      layout = mergeLayout(JSON.parse(localStorage.getItem("visual-layout-v3") || "null"));
+    } catch (error) {}
+    fillTargets();
+    applyAll(false);
+  </script>
+</body>
+</html>

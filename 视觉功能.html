@@ -1,0 +1,4017 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>视觉功能</title>
+  <link rel="icon" href="data:,">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #e7d3b0; }
+    button, input, textarea, select { font: 14px/1.4 "Microsoft YaHei", sans-serif; color: #1c1c1c; }
+    button { cursor: pointer; }
+    .desk { position: fixed; inset: 0; background: url("前端视觉素材/桌面背景图.png") center / cover no-repeat; }
+    .viewport { position: fixed; inset: 0; overflow: hidden; }
+    .stage {
+      position: absolute; left: 0; top: 0; width: 300vw; height: 300vh;
+      display: grid; grid-template-columns: 100vw 100vw 100vw; grid-template-rows: 100vh 100vh 100vh;
+      transform: translate(-100vw, -100vh);
+      transition: transform 920ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .stage[data-view="chat"] { transform: translate(-100vw, 0); }
+    .stage[data-view="handoff"] { transform: translate(0, -100vh); }
+    .stage[data-view="schedule"] { transform: translate(-200vw, -100vh); }
+    .stage[data-view="project"] { transform: translate(-100vw, -200vh); }
+    .panel { position: relative; }
+    .slip { position: absolute; height: auto; pointer-events: none; }
+    .board { position: absolute; }
+    .grid { display: block; width: 100%; height: auto; pointer-events: none; }
+    .note {
+      position: absolute; margin: 0; padding: 22px 10px;
+      background: url("前端视觉素材/主界面/界面材质-纸1.png") center / cover no-repeat;
+      text-align: center; font: 700 18px/1.4 "Microsoft YaHei", sans-serif; color: #1c1c1c;
+      box-shadow: 0 8px 16px rgba(40, 30, 10, 0.16);
+    }
+    .pencil { position: absolute; height: auto; pointer-events: none; }
+    .on-grid { display: none; }
+    .ui-panel {
+      position: absolute; z-index: 3; overflow: visible; padding: 0;
+      background: none;
+    }
+    .ui-panel button, .ui-panel input, .ui-panel textarea, .ui-panel select,
+    .card-tools button, .notice, .box, .person, .req, .submission, .annotation {
+      background: none; border: 0; color: #1c1c1c; box-shadow: none;
+    }
+    .panel[data-panel="chat"] { grid-column: 2; grid-row: 1; }
+    .panel[data-panel="handoff"] { grid-column: 1; grid-row: 2; }
+    .panel[data-panel="main"] { grid-column: 2; grid-row: 2; }
+    .panel[data-panel="schedule"] { grid-column: 3; grid-row: 2; }
+    .panel[data-panel="project"] { grid-column: 2; grid-row: 3; }
+    .placeholder-note {
+      position: absolute; left: 18%; top: 22%; width: 280px; margin: 0; padding: 28px 16px;
+      background: url("前端视觉素材/主界面/界面材质-纸1.png") center / cover;
+      text-align: center; font-weight: 700; box-shadow: 0 8px 16px rgba(40,30,10,.16);
+    }
+    #cocreate-toggle { pointer-events: auto; border: 0; background: none; padding: 0; cursor: pointer; }
+    #cocreate-toggle img {
+      width: 100%; height: auto; display: block; pointer-events: none;
+      transform-origin: 62% 78%; transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    #cocreate-toggle:hover img { transform: rotate(-12deg); }
+    .cocreate-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+    .cocreate-layer canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    #cocreate-items { position: absolute; inset: 0; }
+    .co-image { position: absolute; pointer-events: none; }
+    .co-image img { width: 100%; height: 100%; object-fit: fill; display: block; pointer-events: none; }
+    .co-handle {
+      display: none; position: absolute; right: -7px; bottom: -7px; width: 14px; height: 14px;
+      background: #5c4d9a; border: 1px solid #222; cursor: nwse-resize;
+    }
+    .board.is-cocreate .cocreate-layer { pointer-events: auto; cursor: crosshair; }
+    .board.is-cocreate .co-image { pointer-events: auto; cursor: grab; }
+    .board.is-cocreate .co-handle { display: block; }
+    .slot { position: absolute; inset: 0; }
+    .chat-pop {
+      position: absolute; left: 50%; top: 0; z-index: 8; width: 180px; padding: 0; border: 0; background: transparent;
+      transform: translate(-50%, -110%); transition: transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .chat-pop.is-shown { transform: translate(-50%, 10px); }
+    .chat-pop img { width: 100%; height: auto; image-rendering: pixelated; }
+    .handoff-layout, .sheet { position: absolute; inset: 0; }
+    .own-slot, .other-tray { position: absolute; }
+    .chat-sheet, .project-sheet, .dock, .block, .own-text, .own-link {
+      background: none;
+    }
+    .ui-panel button, .ui-panel input, .ui-panel textarea, .ui-panel select,
+    .card-tools button, .card-tools input, .card-tools select,
+    .chat-sheet button, .chat-sheet textarea,
+    .project-sheet button, .project-sheet input, .project-sheet select,
+    .dock button, .dock input, .dock textarea, .dock select {
+      background: none; border: 0; border-radius: 0; padding: 6px 8px; color: #1c1c1c; box-shadow: none;
+    }
+    .flip { width: 100%; height: 100%; }
+    .own-slot { perspective: 1200px; display: flex; flex-direction: column; }
+    .own-slot > .flip { position: absolute; inset: 0; height: auto; }
+    .mini { perspective: 800px; }
+    .flip-inner {
+      position: relative; width: 100%; height: 100%;
+      transform-style: preserve-3d;
+      transition: transform 800ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .flip-inner.is-front { transform: rotateY(180deg); }
+    .flip-face {
+      position: absolute; inset: 0;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .flip-back img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .flip-front { transform: rotateY(180deg); background: url("前端视觉素材/交接卡/卡面.png") center / 100% 100% no-repeat; }
+    .flip-hit { position: absolute; inset: 0; z-index: 2; padding: 0; border: 0; background: transparent; }
+    .flip-inner.is-front ~ .flip-hit { pointer-events: none; }
+    .card-tools, .card-tools .tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 10px; }
+    .card-stage { position: absolute; inset: 0; overflow: hidden; }
+    .card-world { width: 360px; height: 480px; transform-origin: 0 0; }
+    .card-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .card-tools button, .card-tools select, .card-tools input { background: none; border: 0; padding: 4px 6px; }
+    .own-slot { left: 4%; top: 8%; width: 18%; height: 42%; z-index: 4; }
+    .other-tray { left: 4%; top: 54%; width: 28%; height: 38%; z-index: 4; display: flex; gap: 8px; align-items: flex-end; }
+    .other-tray .mini { position: relative; width: 86px; height: 120px; }
+    .other-tray:has(.mini.is-open) { z-index: 36 !important; }
+    .mini.is-open {
+      position: fixed; left: 50%; top: 50%; width: 320px; height: 448px; z-index: 40;
+      transform: translate(-50%, -50%);
+    }
+    .dock { left: auto; top: auto; width: auto; height: auto; z-index: 2; }
+    .dim { position: fixed; inset: 0; z-index: 35; border: 0; background: rgba(20,16,8,.46); }
+    .card-face { position: absolute; inset: 0; background: transparent; transform: none; }
+    .layer { position: absolute; inset: 0; }
+    .layer-ink { width: 100%; height: 100%; pointer-events: none; }
+    .layer-ink path { fill: none; stroke: #1c1c1c; stroke-width: 2; }
+    .item { position: absolute; }
+    .block { padding: 6px; overflow: auto; }
+    .handle { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; background: #1c1c1c; cursor: nwse-resize; }
+    .canvas-header, .card-title, .badge, .reject-count { font-size: 12px; }
+    .chat-sheet { display: flex; flex-direction: column; min-height: 70%; padding: 8px; background: transparent; box-shadow: none; }
+    .chat-log { flex: 1; overflow: auto; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    .chat-log li { max-width: 72%; padding: 8px 10px; background: none; }
+    .chat-compose { display: flex; gap: 8px; }
+    .chat-compose textarea { flex: 1; min-height: 52px; }
+    .chat-gate { margin: 0 0 8px; font-weight: 700; }
+    .project-sheet { overflow: auto; padding: 8px; }
+    .project-top, .project-bottom { display: grid; gap: 16px; align-items: start; }
+    .project-top { grid-template-columns: 1fr 1fr; }
+    .project-bottom { grid-template-columns: 1fr 1fr 1fr; margin-top: 16px; }
+    .project-sheet { display: flex; flex-direction: column; gap: 12px; }
+    .object-list { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; list-style: none; }
+    .box { min-width: 0; }
+    .ui-panel .composer, .ui-panel .actions { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+    .ui-panel .inline { display: flex; gap: 8px; align-items: flex-end; }
+    .ui-panel .inline textarea { flex: 1; min-height: 64px; }
+    .ui-panel select, .ui-panel input[type="text"], .ui-panel textarea { width: 100%; min-height: 44px; }
+    #slot-handoff { max-height: 86%; }
+    .chat-compose button { flex: 0 0 96px; min-height: 72px; }
+    .object-list { list-style: none; padding: 0; }
+    .object-list .is-on { outline: 2px solid #1c1c1c; font-weight: 700; }
+    .tree, .log { white-space: pre-wrap; font-family: Consolas, monospace; font-size: 12px; }
+    .controls { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+    .seam {
+      position: absolute; pointer-events: auto; border: 0; background: transparent; padding: 0;
+      transition: left 920ms cubic-bezier(0.22, 1, 0.36, 1),
+        top 920ms cubic-bezier(0.22, 1, 0.36, 1),
+        width 920ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 920ms cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 320ms ease;
+    }
+    .seam img { display: block; width: 100%; height: auto; }
+    .seam .on { position: absolute; left: 0; top: 0; opacity: 0; transition: opacity 420ms ease; }
+    .seam-shift { position: relative; display: block; width: 100%; transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+    .seam:hover .seam-shift { transform: translate(var(--hx, 0px), var(--hy, 0px)); }
+    .controls.is-locked .seam { pointer-events: none; }
+    .seam-tip {
+      position: fixed; z-index: 6; transform: translate(14px, -130%);
+      padding: 6px 10px; background: #e7e3da; border: 1px solid #2b2b2b; color: #1c1c1c;
+      font: 700 14px/1.3 "Microsoft YaHei", sans-serif; white-space: nowrap;
+      pointer-events: none; opacity: 0; transition: opacity 160ms ease;
+    }
+    .seam-tip.is-shown { opacity: 1; }
+    body.is-debug .seam-tip { display: none; }
+    .seam-handoff img, .seam-project img, .seam-chat img { image-rendering: pixelated; }
+    .seam-handoff .pack { position: relative; display: block; width: 100%; }
+    .seam-handoff .pack.on { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 1; }
+    .seam-handoff .pack.on img { opacity: 0; transition: opacity 420ms ease; will-change: opacity; }
+    .controls[data-view="handoff"] .seam-handoff .pack.on img { opacity: 1; }
+    .seam-handoff .pack img { transform-origin: 50% 50%; filter: drop-shadow(4px 8px 0 rgba(30, 24, 16, 0.2)); }
+    .seam-handoff .pack img[data-layer="0"] { position: relative; z-index: 1; }
+    .seam-handoff .pack img[data-layer="1"] { position: absolute; left: 0; top: 0; z-index: 2; }
+    .seam-handoff .pack img[data-layer="2"] { position: absolute; left: 0; top: 0; z-index: 3; }
+    .controls[data-view="chat"] .seam-chat .on,
+    .controls[data-view="handoff"] .seam-handoff .on,
+    .controls[data-view="schedule"] .seam-schedule .on,
+    .controls[data-view="project"] .seam-project .on { opacity: 1; }
+    .controls:not([data-view="main"]) .seam { opacity: 0; pointer-events: none; }
+    .controls[data-view="chat"] .seam-chat,
+    .controls[data-view="handoff"] .seam-handoff,
+    .controls[data-view="schedule"] .seam-schedule,
+    .controls[data-view="project"] .seam-project { opacity: 1; pointer-events: auto; }
+    .console {
+      position: fixed; left: 16px; top: 16px; z-index: 50; width: 320px; max-height: calc(100vh - 32px); overflow: auto;
+      padding: 12px; background: #e7e3da; border: 1px solid #222;
+    }
+    .console[hidden] { display: none; }
+    .console h2 { margin: 0 0 8px; cursor: grab; user-select: none; }
+    .console label { display: grid; grid-template-columns: 52px 1fr 64px; gap: 6px; align-items: center; margin: 6px 0; }
+    .console .row { display: flex; gap: 6px; margin-top: 8px; }
+    body.is-debug .slip,
+    body.is-debug .pencil,
+    body.is-debug .note,
+    body.is-debug [data-piece],
+    body.is-debug .grid { pointer-events: auto; }
+    .own-slot, .mini, .flip { transform-style: preserve-3d; }
+    .ui-panel .panel { position: static; width: auto; height: auto; }
+    .ui-panel h2 { margin: 0 0 8px; font-size: 18px; }
+    .ui-panel .field, .ui-panel fieldset.field { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; }
+    .ui-panel .checks { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+    .ui-panel button { margin: 0 6px 6px 0; }
+    .chat-sheet { display: flex; flex-direction: column; gap: 8px; height: 100%; }
+    .chat-log { flex: 1; overflow: auto; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .chat-compose { display: flex; gap: 8px; align-items: flex-end; }
+    .chat-compose textarea { flex: 1; min-height: 72px; }
+    .chat-compose textarea { flex: 1; min-height: 72px; }
+    #xform { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+    #xform[hidden] { display: none; }
+    .xform-box { position: absolute; outline: 1.5px solid #0b99ff; transform-origin: center center; }
+    .xform-box span { position: absolute; width: 11px; height: 11px; background: #fff; border: 1.5px solid #0b99ff; pointer-events: auto; transform: translate(-50%, -50%); }
+    .xform-box [data-handle="nw"] { left: 0; top: 0; }
+    .xform-box [data-handle="ne"] { left: 100%; top: 0; }
+    .xform-box [data-handle="se"] { left: 100%; top: 100%; }
+    .xform-box [data-handle="sw"] { left: 0; top: 100%; }
+    .xform-box [data-handle="n"] { left: 50%; top: 0; }
+    .xform-box [data-handle="e"] { left: 100%; top: 50%; }
+    .xform-box [data-handle="s"] { left: 50%; top: 100%; }
+    .xform-box [data-handle="w"] { left: 0; top: 50%; }
+    .xform-box [data-handle="rotate"] { left: 50%; top: -22px; border-radius: 50%; }
+
+    .ui-panel { background: none; padding: 0; overflow: visible; }
+    #slot-handoff, #slot-chat, #slot-project { overflow: visible; background: none; }
+    .win, .card-tools, .term-win {
+      font-family: Tahoma, "Microsoft YaHei", sans-serif;
+    }
+    .win {
+      background: #e7e3da; color: #1c1c1c;
+      border: 1px solid #2b2b2b; border-radius: 2px;
+      box-shadow: 0 10px 24px rgba(30, 24, 16, .16);
+      display: flex; flex-direction: column; min-height: 0;
+    }
+    .win-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      min-height: 32px; margin: 0; padding: 0 6px 0 12px;
+      background: #5c4d9a; color: #fff; cursor: grab;
+      font: 700 13px/1 Tahoma, "Microsoft YaHei", sans-serif; letter-spacing: .04em;
+    }
+    .win-bar:active { cursor: grabbing; }
+    .win-ctl { display: flex; gap: 4px; }
+    .win-ctl span {
+      width: 22px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+      background: #eceae4; color: #222; border: 1px solid #b7b3aa; border-radius: 2px;
+      font: 700 11px/1 Tahoma, sans-serif;
+    }
+    .win-body { padding: 12px 14px 14px; overflow: auto; background: #e7e3da; max-height: 68vh; }
+    .win .panel > h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .win button, .card-tools button {
+      background: #ebe7df; color: #1c1c1c; border-radius: 2px;
+      border: 1px solid #2b2b2b; box-shadow: none; padding: 6px 12px;
+    }
+    .win button:active, .card-tools button:active, .card-tools button[aria-pressed="true"] {
+      background: #d9d4c8;
+    }
+    .win input, .win textarea, .win select, .card-tools input, .card-tools select {
+      background: #ebe7df; color: #1c1c1c; border-radius: 2px; width: 100%; min-height: 28px;
+      border: 1px solid #2b2b2b; box-shadow: none; padding: 4px 8px;
+    }
+    .win textarea { min-height: 72px; resize: vertical; }
+    .win .field { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; }
+    .win .field > span, .win label > span { font-size: 14px; }
+    .composer > .field:first-child select { width: 168px; align-self: flex-start; }
+    .attach-controls { display: flex; align-items: center; gap: 8px; }
+    .attach-controls select { flex: 1; width: auto; min-width: 0; }
+    .attach-controls button { margin: 0; flex: 0 0 auto; }
+    .win .requirement { counter-increment: req; background: #f3f0e8; border: 1px solid #2b2b2b; border-radius: 2px; padding: 8px 10px; margin-top: 10px; }
+    .win .requirement header { color: #000; font-size: 12px; }
+    .win .submission { display: grid; grid-template-columns: 28px 1fr; gap: 4px 10px; align-items: start; }
+    .win .submission::before {
+      content: counter(req); grid-row: 1 / span 3;
+      width: 22px; height: 22px; border: 1px solid #ccc; border-radius: 50%;
+      text-align: center; line-height: 20px; font-size: 12px;
+    }
+    .annotation.is-empty { display: none; }
+    .win .annotation { background: #ffffe1; border: 1px solid #000; padding: 6px 8px; margin: 0 0 10px; }
+    .flip-front { background: #fff; border-radius: 18px; }
+    .flip-back img, .flip-front { border-radius: 18px; }
+    .card-kicker {
+      position: absolute; z-index: 4; left: 16px; top: 12px; margin: 0;
+      font: 700 13px/1 "Microsoft YaHei", sans-serif; letter-spacing: .04em; color: #9a9a9a;
+      pointer-events: none;
+    }
+    .card-kicker.is-other { color: #e07a1a; }
+    .card-tools {
+      position: absolute; left: 0; top: calc(100% + 8px); z-index: 8;
+      width: max(100%, 300px); margin: 0; padding: 6px;
+      display: block; background: #e7e3da; border-radius: 2px;
+      border: 1px solid #2b2b2b;
+    }
+    .card-tools[hidden] { display: none; }
+    .card-tools .tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .card-tools button[aria-pressed="true"] { background: #c0c0c0; color: #000; }
+    body.is-debug .flip-hit { pointer-events: none; }
+    .own-text, .own-link { cursor: grab; user-select: none; background: #fff; border: 1px dashed #000; padding: 2px 6px; }
+    .own-text .handle, .block .handle { z-index: 2; }
+    .other-tray .mini { width: 138px; height: 176px; }
+    #slot-chat { pointer-events: none; }
+    #slot-chat .win, #slot-chat .term-win { pointer-events: auto; }
+    #slot-chat .win { width: min(680px, 70%); height: 58%; margin: 6% auto 0; }
+    #slot-chat .win-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    #slot-chat .chat-log { flex: 1; }
+    .win .chat-log { gap: 0; display: flex; flex-direction: column; }
+    .win .chat-log li {
+      max-width: none; align-self: stretch; background: #fff; border: 0; border-radius: 0;
+      border-bottom: 1px solid #808080; padding: 6px 4px; box-shadow: none; color: #000;
+    }
+    .win .chat-log li b { display: block; }
+    .win .chat-log li p { margin: 4px 0 0; }
+    .win .chat-compose { display: flex; gap: 6px; align-items: center; background: transparent; padding: 8px 0 0; }
+    .win .chat-compose textarea { flex: 1; min-height: 42px; }
+    .win .chat-compose button { flex: 0 0 72px; min-height: 40px; }
+    .term-win {
+      position: absolute; left: 2%; bottom: 8%; width: 250px; z-index: 4;
+      background: #111; color: #d8d8d8; border-radius: 2px;
+      border: 1px solid #2b2b2b; cursor: grab;
+      font: 12px/1.45 Consolas, monospace;
+    }
+    .term-win header { display: flex; justify-content: flex-end; gap: 3px; padding: 4px 6px; background: #5c4d9a; color: #fff; cursor: grab; }
+    .term-win header span {
+      width: 16px; height: 14px; display: inline-flex; align-items: center; justify-content: center;
+      background: #eceae4; color: #222; border: 1px solid #b7b3aa; font: 700 10px/1 Tahoma, sans-serif;
+    }
+    .term-win pre { margin: 0; padding: 4px 12px 12px; white-space: pre-wrap; }
+    #slot-project .win { height: 100%; }
+    .win .box { background: #f3f0e8; border: 1px solid #2b2b2b; border-radius: 2px; padding: 10px; box-shadow: none; }
+    .win .box h2 { display: block; font-size: 16px; margin: 0 0 8px; }
+    .file-row { display: flex; gap: 8px; align-items: flex-end; }
+    .file-row .field { flex: 1; margin: 0; }
+    .file-row select { width: auto; min-width: 88px; }
+    .log-screen { background: #161616; color: #eee; border-radius: 8px; min-height: 84px; margin: 0; padding: 10px; white-space: pre-wrap; }
+    .object-list li { padding: 2px 6px; background: #fff; border: 1px solid #808080; }
+    .object-list .is-on { background: #000080; color: #fff; outline: none; }
+  </style>
+</head>
+<body id="app">
+  <div class="desk"></div>
+  <div class="viewport">
+    <div class="stage" id="stage" data-view="main">
+      <section class="panel" data-panel="chat">
+        <img class="slip" data-piece="chat-slip-l" src="前端视觉素材/主界面/界面材质-纸2.png" alt="">
+        <img class="slip" data-piece="chat-slip-r" src="前端视觉素材/主界面/界面材质-纸3.png" alt="">
+        <div class="board" data-piece="chat-board">
+          <img class="grid" data-piece="chat-grid" src="前端视觉素材/主界面/界面材质-网格纸.png" alt="">
+        </div>
+        <div id="slot-chat" class="ui-panel" data-piece="chat-ui"></div>
+      </section>
+      <section class="panel" data-panel="handoff">
+        <button id="chat-pop" class="chat-pop" type="button" data-action="go-chat" hidden>
+          <img src="前端视觉素材/侧边栏按钮/侧边按钮-临时聊天2 .png" alt="临时聊天">
+        </button>
+        <button id="inspect-dim" class="dim" type="button" data-action="close-inspect" hidden aria-label="收回卡片"></button>
+        <img class="slip" data-piece="handoff-slip-l" src="前端视觉素材/主界面/界面材质-纸2.png" alt="">
+        <img class="slip" data-piece="handoff-slip-r" src="前端视觉素材/主界面/界面材质-纸1.png" alt="">
+        <div class="board" data-piece="handoff-board">
+          <img class="grid" data-piece="handoff-grid" src="前端视觉素材/主界面/界面材质-网格纸.png" alt="">
+        </div>
+        <div id="slot-handoff" class="ui-panel" data-piece="dock-ui"></div>
+        <div id="slot-cards"></div>
+      </section>
+      <section class="panel" data-panel="main">
+        <img class="slip" data-piece="main-slip-l" src="前端视觉素材/主界面/界面材质-纸2.png" alt="">
+        <img class="slip" data-piece="main-slip-r" src="前端视觉素材/主界面/界面材质-纸3.png" alt="">
+        <div class="board" data-piece="main-board">
+          <img class="grid" data-piece="main-grid" src="前端视觉素材/主界面/界面材质-网格纸.png" alt="">
+          <div id="cocreate-layer" class="cocreate-layer">
+            <canvas id="cocreate-ink"></canvas>
+            <div id="cocreate-items"></div>
+          </div>
+          <button class="pencil" id="cocreate-toggle" type="button" data-piece="main-pencil" aria-pressed="false" aria-label="开启共创模式">
+            <img src="前端视觉素材/主界面/编辑主界面按钮1.png" alt="">
+          </button>
+        </div>
+      </section>
+      <section class="panel" data-panel="schedule">
+        <img class="slip" data-piece="schedule-slip-l" src="前端视觉素材/主界面/界面材质-纸1.png" alt="">
+        <img class="slip" data-piece="schedule-slip-r" src="前端视觉素材/主界面/界面材质-纸3.png" alt="">
+        <div class="board" data-piece="schedule-board">
+          <img class="grid" data-piece="schedule-grid" src="前端视觉素材/主界面/界面材质-网格纸.png" alt="">
+          <p class="note" data-piece="schedule-note-1">日程表</p>
+          <p class="note" data-piece="schedule-note-2">该功能还未开发</p>
+        </div>
+      </section>
+      <section class="panel" data-panel="project">
+        <img class="slip" data-piece="project-slip-l" src="前端视觉素材/主界面/界面材质-纸2.png" alt="">
+        <img class="slip" data-piece="project-slip-r" src="前端视觉素材/主界面/界面材质-纸3.png" alt="">
+        <div class="board" data-piece="project-board">
+          <img class="grid" data-piece="project-grid" src="前端视觉素材/主界面/界面材质-网格纸.png" alt="">
+        </div>
+        <div id="slot-project" class="ui-panel" data-piece="project-ui"></div>
+      </section>
+    </div>
+  </div>
+  <div class="controls" id="controls" data-view="main">
+    <button class="seam seam-chat" type="button" data-go="chat" aria-label="聊天">
+      <span class="seam-shift">
+        <img class="off" src="前端视觉素材/侧边栏按钮/侧边按钮-临时聊天1 .png" alt="">
+        <img class="on" src="前端视觉素材/侧边栏按钮/侧边按钮-临时聊天2 .png" alt="">
+      </span>
+    </button>
+    <button class="seam seam-handoff" type="button" data-go="handoff" aria-label="交接卡">
+      <span class="seam-shift">
+        <span class="pack off">
+          <img data-layer="0" src="前端视觉素材/侧边栏按钮/侧边按钮-交接区1 .png" alt="">
+          <img data-layer="1" src="前端视觉素材/侧边栏按钮/侧边按钮-交接区1 .png" alt="">
+          <img data-layer="2" src="前端视觉素材/侧边栏按钮/侧边按钮-交接区1 .png" alt="">
+        </span>
+        <span class="pack on">
+          <img data-layer="0" src="前端视觉素材/侧边栏按钮/侧边按钮-交接区2 .png" alt="">
+          <img data-layer="1" src="前端视觉素材/侧边栏按钮/侧边按钮-交接区2 .png" alt="">
+          <img data-layer="2" src="前端视觉素材/侧边栏按钮/侧边按钮-交接区2 .png" alt="">
+        </span>
+      </span>
+    </button>
+    <button class="seam seam-schedule" type="button" data-go="schedule" aria-label="日程">
+      <span class="seam-shift">
+        <img class="off" src="前端视觉素材/侧边栏按钮/侧边按钮-日程区1 .png" alt="">
+        <img class="on" src="前端视觉素材/侧边栏按钮/侧边按钮-日程区2 .png" alt="">
+      </span>
+    </button>
+    <button class="seam seam-project" type="button" data-go="project" aria-label="项目管理">
+      <span class="seam-shift">
+        <img class="off" src="前端视觉素材/侧边栏按钮/侧边按钮-管理区1 .png" alt="">
+        <img class="on" src="前端视觉素材/侧边栏按钮/侧边按钮-管理区2  .png" alt="">
+      </span>
+    </button>
+    <span class="seam-tip" id="seam-tip"></span>
+  </div>
+  <aside class="console" id="console" hidden>
+    <h2 id="console-drag" title="拖动这里移动窗口">控制台</h2>
+    <div id="console-core"></div>
+    <section>
+      <h3>界面位置</h3>
+      <label>对象 <select id="tuner-target"></select><span></span></label>
+      <label>X <input id="tuner-x" type="number" step="0.1"><span></span></label>
+      <label>Y <input id="tuner-y" type="number" step="0.1"><span></span></label>
+      <label>宽度 <input id="tuner-w" type="number" step="1"><span></span></label>
+      <label>角度 <input id="tuner-r" type="number" step="1"><span></span></label>
+      <label>悬停幅度 <input id="tuner-hover" type="number" min="0" max="120" step="1"><span>px</span></label>
+      <div class="row">
+        <button id="tuner-back" type="button">下移一层</button>
+        <button id="tuner-front" type="button">上移一层</button>
+        <button id="tuner-save" type="button">保存代码</button>
+      </div>
+      <div class="row">
+        <button id="cocreate-clear" type="button">清除共创内容</button>
+      </div>
+      <p id="tuner-status">改完点保存代码，把下载的 视觉布局.json 发回来。</p>
+    </section>
+  </aside>
+  <div id="xform" hidden><div class="xform-box" id="xform-box">
+    <span data-handle="nw"></span><span data-handle="n"></span><span data-handle="ne"></span>
+    <span data-handle="w"></span><span data-handle="e"></span>
+    <span data-handle="sw"></span><span data-handle="s"></span><span data-handle="se"></span>
+    <span data-handle="rotate"></span>
+  </div></div>
+  <script>
+
+/* === CONFIG-BEGIN === */
+// 改这一处即可切换行为，不要把可配置项散落到代码里。
+const CONFIG = {
+  // 是否显示「载入演示剧本」按钮（一键预置到走查「发放之后」的状态）。
+  showDemoScriptButton: true,
+  // 本地存储键。与旧原型用的那个键完全无关，互不污染。
+  storageKey: "handoff-visual-v1",
+};
+globalThis.__HANDOFF_CONFIG__ = CONFIG;
+/* === CONFIG-END === */
+
+/* === CORE-BEGIN === */
+// 核心层（"后端"）：纯函数。禁止出现 document / window / localStorage / Date /
+// Math.random / 定时器 / 任何渲染技术概念。同输入必得同输出，且绝不原地修改传入的 core。
+"use strict";
+
+const ACTIONS = {
+  HANDOVER_CREATE: "handover/create",
+  REQUIREMENT_NEW: "requirement/new",
+  REQUIREMENT_SET_DRAFT: "requirement/setDraft",
+  REQUIREMENT_ADOPT_SUGGESTION: "requirement/adoptSuggestion",
+  REQUIREMENT_SET_SUGGESTION: "requirement/setSuggestion",
+  REQUIREMENT_SUBMIT: "requirement/submit",
+  SUBMISSION_ACCEPT: "submission/accept",
+  SUBMISSION_REJECT: "submission/reject",
+  SUBMISSION_COMMENT: "submission/comment",
+  CANVAS_ADD_INK: "canvas/addInk",
+  CANVAS_REMOVE_INK: "canvas/removeInk",
+  CANVAS_UNDO: "canvas/undo",
+  CANVAS_ADD_TEXT: "canvas/addText",
+  CANVAS_UPDATE_TEXT: "canvas/updateText",
+  CANVAS_REMOVE_TEXT: "canvas/removeText",
+  CANVAS_MOVE_TEXT: "canvas/moveText",
+  CANVAS_ADD_OWN_LINK: "canvas/addOwnLink",
+  CANVAS_REMOVE_OWN_LINK: "canvas/removeOwnLink",
+  CANVAS_MOVE_OWN_LINK: "canvas/moveOwnLink",
+  CANVAS_MOVE_BLOCK: "canvas/moveBlock",
+  CANVAS_RESIZE_BLOCK: "canvas/resizeBlock",
+  CANVAS_UPLOAD: "canvas/upload",
+  CANVAS_EXIT_EDIT: "canvas/exitEdit",
+  CHAT_SEND: "chat/send",
+};
+
+// 界面中文文案集中在此。核心层与视图层都只从这里取词，不硬编码中文。
+const TEXT = {
+  statusNeverUploaded: "未上传",
+  statusUploaded: "已上传",
+  statusEditing: "编辑中",
+  statePendingReply: "待回应",
+  stateAgreed: "已共识",
+  stateNeedsRewrite: "待重写",
+  roundCurrent: "当前轮",
+  roundPrevious: "上一轮",
+  rejectGateUnlocked: "已经打回超过三次，可以临时聊一次。",
+  suggestionDisclaimer: "建议由页面内固定规则生成，不调用模型。",
+};
+
+// 卡面与共识块的几何常量。
+const CARD = { w: 360, h: 480 };
+const BLOCK_DEFAULT = { w: 280, h: 88 };
+const BLOCK_MIN = { w: 160, h: 64 };
+const BLOCK_GAP = 16;
+
+// 渲染顺序的单一事实来源（v2 L58：绘制层位于共识块之下）。视图层不得另行硬编码层序。
+const LAYER_ORDER = ["ink", "ownLinks", "ownTexts", "blockInstances"];
+
+function emptyContent() {
+  return { ink: [], texts: [], links: [], blockInstances: [] };
+}
+
+// 核心状态是纯 JSON 数据，因此用 JSON 深拷贝即可保证 copy-on-write。
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function createCore({ level, thing, initiatorName, participantNames }) {
+  const core = {
+    seq: 1,
+    handover: {
+      level,
+      thing,
+      initiatorId: null,
+      holderIds: [],
+      rejectCount: 0,
+      chat: { messages: [] },
+    },
+    holders: {},
+    cards: {},
+    blocks: {},
+    requirements: [],
+  };
+
+  // 发起者恒为第一个人；参与者名单去重，且不因重复出现而多发一张卡（v2 L92）。
+  const names = [initiatorName];
+  for (const name of participantNames || []) {
+    if (!names.includes(name)) names.push(name);
+  }
+
+  names.forEach((name, index) => {
+    const holderId = "h" + (index + 1);
+    const cardId = "c" + (index + 1);
+    const isInitiator = index === 0;
+
+    core.holders[holderId] = { id: holderId, name, isInitiator, cardId };
+    core.cards[cardId] = {
+      id: cardId,
+      holderId,
+      level,
+      thing,
+      holder: name,
+      uploadedOnce: false,
+      visible: emptyContent(),
+      draft: null,
+    };
+    core.handover.holderIds.push(holderId);
+    if (isInitiator) core.handover.initiatorId = holderId;
+  });
+
+  return core;
+}
+
+// action 处理器表：每个处理器只用 { check, apply } 两个纯函数描述。
+// check 在副本产生之前运行，因此拒绝路径上任何状态都不会被改动。
+const HANDLERS = {};
+
+function dispatch(core, action) {
+  if (!action || typeof action.type !== "string") {
+    return { ok: false, error: "UNKNOWN_ACTION", core };
+  }
+  const handler = HANDLERS[action.type];
+  if (!handler) return { ok: false, error: "UNKNOWN_ACTION", core };
+
+  const problem = handler.check ? handler.check(core, action) : null;
+  if (problem) return { ok: false, error: problem, core };
+
+  const next = clone(core);
+  handler.apply(next, action);
+  return { ok: true, core: next };
+}
+
+// —— 派生量：不存储，避免双写不一致 ——
+
+function cardStatus(core, cardId) {
+  const card = core.cards[cardId];
+  if (!card) return null;
+  if (card.draft !== null) return "editing";
+  return card.uploadedOnce ? "uploaded" : "neverUploaded";
+}
+
+function cardOfHolder(core, holderId) {
+  const holder = core.holders[holderId];
+  return holder ? core.cards[holder.cardId] : null;
+}
+
+function holderList(core) {
+  return core.handover.holderIds.map((id) => core.holders[id]);
+}
+
+// —— 对接记录：要求、提交、意见 ——
+
+function findRequirement(core, reqId) {
+  return core.requirements.find((r) => r.id === reqId) || null;
+}
+
+// 原始存储访问器。可见性由 recordFor / suggestionFor 强制，视图层不得用它绕过投影。
+function requirementOf(core, reqId) {
+  return findRequirement(core, reqId);
+}
+
+// "条"的状态只是其当前提交状态的投影（规格 §4.1 T11 / P0-3）。
+function requirementStatus(core, reqId) {
+  const req = findRequirement(core, reqId);
+  if (!req || !req.currentSubmissionId) return null;
+  const submission = req.submissions.find((s) => s.id === req.currentSubmissionId);
+  return submission ? submission.state : null;
+}
+
+// 对接记录的可见性投影：发起者见全部；接收人只见自己那条；其余为空（v2 L98）。
+// 非发起者拿到的投影里连 suggestion 字段都不存在——I9 由核心层结构性保证。
+function recordFor(core, holderId) {
+  const isInitiator = holderId === core.handover.initiatorId;
+  return core.requirements
+    .filter((r) => isInitiator || r.receiverId === holderId)
+    .map((r) => {
+      const view = clone(r);
+      if (!isInitiator) delete view.suggestion;
+      return view;
+    });
+}
+
+// 书写建议只对发起者可读（v2 L96 / I9）。
+function suggestionFor(core, reqId, viewerHolderId) {
+  if (viewerHolderId !== core.handover.initiatorId) return null;
+  const req = findRequirement(core, reqId);
+  return req ? req.suggestion : null;
+}
+
+// 页面内固定规则，不调用模型。界面必须显示 TEXT.suggestionDisclaimer。
+function makeSuggestion(draftText, receiverName) {
+  const text = String(draftText || "")
+    .trim()
+    .replace(/^(我觉得|那个|就是|请|麻烦|帮我|能不能)/, "");
+  if (!text) return null;
+
+  if (/压过|盖过|太响|听不见/.test(text)) {
+    return {
+      understanding: receiverName + " 可能理解为「这段声音的音量不能盖过脚步」",
+      usable: "短，干，不能盖过脚步",
+    };
+  }
+  if (/太亮|不要亮|刺眼|抢眼/.test(text)) {
+    return {
+      understanding: receiverName + " 可能理解为「这张图不能太抢眼」",
+      usable: "压暗，不抢这一关的主体",
+    };
+  }
+  if (/看不清|太小/.test(text)) {
+    return {
+      understanding: receiverName + " 可能理解为「这个对象在这一关里要一眼认得出」",
+      usable: "放大到这一关里能一眼认出",
+    };
+  }
+  return {
+    understanding: receiverName + " 可能理解为「按这句话字面执行」",
+    usable: text.replace(/[。！!？?]+$/g, "") || text,
+  };
+}
+
+HANDLERS[ACTIONS.REQUIREMENT_NEW] = {
+  check(core, action) {
+    if (action.actorId !== core.handover.initiatorId) return "NOT_INITIATOR";
+    if (!core.holders[action.receiverId]) return "NOT_FOUND";
+    if (action.receiverId === core.handover.initiatorId) return "RECEIVER_IS_INITIATOR";
+    return null;
+  },
+  apply(next, action) {
+    next.requirements.push({
+      id: "r" + next.seq++,
+      initiatorId: next.handover.initiatorId,
+      receiverId: action.receiverId,
+      draftText: "",
+      suggestion: null,
+      submissions: [],
+      currentSubmissionId: null,
+    });
+  },
+};
+
+HANDLERS[ACTIONS.REQUIREMENT_SET_DRAFT] = {
+  check(core, action) {
+    if (action.actorId !== core.handover.initiatorId) return "NOT_INITIATOR";
+    const req = findRequirement(core, action.reqId);
+    if (!req) return "NOT_FOUND";
+    // T11：已共识的条不能由发起者主动改写再提交（v2 L100 只给了"待回应期间"这个窗口）。
+    // 要改只有两条路：接收人先打回，或按 v2 L102 新开一条要求。
+    if (isCurrentAgreed(core, req)) return "AGREED_CANNOT_REVISE";
+    return null;
+  },
+  apply(next, action) {
+    const req = findRequirement(next, action.reqId);
+    req.draftText = String(action.text == null ? "" : action.text);
+    req.suggestion = makeSuggestion(req.draftText, next.holders[req.receiverId].name);
+  },
+};
+
+HANDLERS[ACTIONS.REQUIREMENT_ADOPT_SUGGESTION] = {
+  check(core, action) {
+    if (action.actorId !== core.handover.initiatorId) return "NOT_INITIATOR";
+    const req = findRequirement(core, action.reqId);
+    if (!req) return "NOT_FOUND";
+    if (isCurrentAgreed(core, req)) return "AGREED_CANNOT_REVISE";
+    if (!req.suggestion) return "NO_SUGGESTION";
+    return null;
+  },
+  apply(next, action) {
+    const req = findRequirement(next, action.reqId);
+    // v2 L96：发起者**可以**把建议中的文字写入自己的句子，系统不替换。
+    // 区别就在这一步由发起者点按触发——系统从不自作主张。
+    req.draftText = req.suggestion.usable;
+    req.suggestion = makeSuggestion(req.draftText, next.holders[req.receiverId].name);
+  },
+};
+
+// 建议由谁生成，核心层不管：规则版在核心层内同步算出来，落地版由外部（模型）异步算出来。
+// 这个 action 只负责把结果收下来——核心层是纯函数，禁止定时器与网络，所以异步绝不能进来。
+// 边界仍然由核心层守住：只有发起者能触发、脏数据不收、已共识不收。
+HANDLERS[ACTIONS.REQUIREMENT_SET_SUGGESTION] = {
+  check(core, action) {
+    if (action.actorId !== core.handover.initiatorId) return "NOT_INITIATOR";
+    const req = findRequirement(core, action.reqId);
+    if (!req) return "NOT_FOUND";
+    if (isCurrentAgreed(core, req)) return "AGREED_CANNOT_REVISE";
+
+    const suggestion = action.suggestion;
+    if (!suggestion || typeof suggestion !== "object") return "BAD_SUGGESTION";
+    if (typeof suggestion.understanding !== "string" || typeof suggestion.usable !== "string") return "BAD_SUGGESTION";
+    if (!suggestion.understanding.trim() || !suggestion.usable.trim()) return "BAD_SUGGESTION";
+    return null;
+  },
+  apply(next, action) {
+    const req = findRequirement(next, action.reqId);
+    req.suggestion = {
+      understanding: action.suggestion.understanding,
+      usable: action.suggestion.usable,
+      // 不认识就退回归则为 rule：旧存档没有这个字段，界面按规则处理即可，不该抛错。
+      source: action.suggestion.source === "model" ? "model" : "rule",
+    };
+  },
+};
+
+HANDLERS[ACTIONS.REQUIREMENT_SUBMIT] = {
+  check(core, action) {    if (action.actorId !== core.handover.initiatorId) return "NOT_INITIATOR";
+    const req = findRequirement(core, action.reqId);
+    if (!req) return "NOT_FOUND";
+    if (isCurrentAgreed(core, req)) return "AGREED_CANNOT_REVISE";
+    if (!String(req.draftText || "").trim()) return "EMPTY_SENTENCE";
+    return null;
+  },
+  apply(next, action) {
+    const req = findRequirement(next, action.reqId);
+    const submission = {
+      id: "s" + next.seq++,
+      rawSentence: req.draftText,
+      attachmentLink: action.attachmentLink || null,
+      state: "pendingReply",
+      opinions: [],
+    };
+    req.submissions.push(submission);
+    req.currentSubmissionId = submission.id;
+    req.suggestion = null; // v2 L134：提交后从发起者的书写位置撤下
+  },
+};
+
+// —— 共识块与画布可见性 ——
+
+function currentSubmission(core, req) {
+  if (!req || !req.currentSubmissionId) return null;
+  return req.submissions.find((s) => s.id === req.currentSubmissionId) || null;
+}
+
+function blockOf(core, blockId) {
+  return core.blocks[blockId] || null;
+}
+
+// v2 L126 只有「当前轮 / 上一轮」两个词：roundIndex 最大者显示当前轮，其余显示上一轮。
+// 存储保留序号（而不是布尔），这样接受第三次、第四次也不会乱。
+function blockRoundLabel(core, blockId) {
+  const block = core.blocks[blockId];
+  if (!block) return null;
+  const maxRoundIndex = Math.max(...Object.values(core.blocks).map((b) => b.roundIndex));
+  return block.roundIndex === maxRoundIndex ? "current" : "previous";
+}
+
+// 默认位置（规格 §4.3）：卡面内自上而下，固定块宽与间距（v2 三次提到「默认位置」但未定义）。
+function defaultPosition(content) {
+  const index = content.blockInstances.length;
+  return {
+    x: 40,
+    y: 40 + index * (BLOCK_DEFAULT.h + BLOCK_GAP),
+    w: BLOCK_DEFAULT.w,
+    h: BLOCK_DEFAULT.h,
+  };
+}
+
+// 查看仅限他人卡（v2 L68「任意一张其他卡」，「其他」是显式限定）。
+// 查看是纯读：不产生任何 action，不写入 draft，因此也不触发"编辑中"。
+function canView(core, viewerHolderId, cardId) {
+  const card = core.cards[cardId];
+  if (!card) return false;
+  return card.holderId !== viewerHolderId;
+}
+
+// 返回副本：视图层只能读，不能借这份引用改动核心状态。
+function visibleContentFor(core, cardId, viewerHolderId) {
+  const card = core.cards[cardId];
+  if (!card) return null;
+  const holderSeesOwnDraft = viewerHolderId === card.holderId && card.draft !== null;
+  return clone(holderSeesOwnDraft ? card.draft : card.visible);
+}
+
+HANDLERS[ACTIONS.SUBMISSION_ACCEPT] = {
+  check(core, action) {
+    const req = findRequirement(core, action.reqId);
+    if (!req) return "NOT_FOUND";
+    if (action.actorId !== req.receiverId) return "NOT_RECEIVER";
+    const submission = currentSubmission(core, req);
+    if (!submission) return "NOT_PENDING_REPLY";
+    if (submission.state === "agreed") return "ALREADY_AGREED";
+    if (submission.state !== "pendingReply") return "NOT_PENDING_REPLY";
+    return null;
+  },
+  apply(next, action) {
+    const req = findRequirement(next, action.reqId);
+    const submission = currentSubmission(next, req);
+    submission.state = "agreed";
+
+    // 块是交接级原型；实例是每卡独立的（v2 L110 + L126）。
+    const blockId = "b" + next.seq++;
+    next.blocks[blockId] = {
+      id: blockId,
+      reqId: req.id,
+      submissionId: submission.id,
+      rawSentence: submission.rawSentence,
+      level: next.handover.level,
+      thing: next.handover.thing,
+      attachmentLink: submission.attachmentLink,
+      roundIndex: next.seq++,
+    };
+
+    for (const holderId of next.handover.holderIds) {
+      const card = next.cards[next.holders[holderId].cardId];
+      // T4 分发落点规则：编辑中的卡只进本机草稿，其余直接进他人可见版本。
+      const inEditing = card.draft !== null;
+      const target = inEditing ? card.draft : card.visible;
+      const position = defaultPosition(target);
+      target.blockInstances.push({
+        blockId,
+        x: position.x,
+        y: position.y,
+        w: position.w,
+        h: position.h,
+        writtenToVisible: !inEditing,
+      });
+    }
+  },
+};
+
+// 临时对话随时可以打开。打回次数只决定图标是否高亮。
+function chatUnlocked() {
+  return true;
+}
+
+// 打回次数超过 3 次后，图标高亮并出现提示。不参与能不能打开的判断。
+function chatEmphasized(core) {
+  return core.handover.rejectCount > 3;
+}
+
+// 当前提交是否已共识。已共识是"提交实例"的状态，不是"条"的终态（规格 §7.4 例外 3）。
+function isCurrentAgreed(core, req) {
+  const submission = currentSubmission(core, req);
+  return !!submission && submission.state === "agreed";
+}
+
+// 当前提交是否仍可被接收人回应（待回应或已共识；待重写时三个动作都不可用，v2 L116）。
+function isRespondable(core, req) {
+  const submission = currentSubmission(core, req);
+  return !!submission && (submission.state === "pendingReply" || submission.state === "agreed");
+}
+
+HANDLERS[ACTIONS.SUBMISSION_REJECT] = {
+  check(core, action) {
+    const req = findRequirement(core, action.reqId);
+    if (!req) return "NOT_FOUND";
+    if (action.actorId !== req.receiverId) return "NOT_RECEIVER";
+    if (!isRespondable(core, req)) return "NOT_PENDING_REPLY";
+    return null;
+  },
+  apply(next, action) {
+    const req = findRequirement(next, action.reqId);
+    const submission = currentSubmission(next, req);
+
+    submission.state = "needsRewrite";
+    next.handover.rejectCount += 1;
+
+    // 打回可以附带一句文字，也可以不附带；不附时不得留下空记录（v2 L114）。
+    const note = String(action.note == null ? "" : action.note).trim();
+    if (note) {
+      submission.opinions.push({ id: "o" + next.seq++, authorId: action.actorId, kind: "rejectNote", text: note });
+    }
+  },
+};
+
+HANDLERS[ACTIONS.SUBMISSION_COMMENT] = {
+  check(core, action) {
+    const req = findRequirement(core, action.reqId);
+    if (!req) return "NOT_FOUND";
+    if (action.actorId !== req.receiverId) return "NOT_RECEIVER";
+    if (!isRespondable(core, req)) return "NOT_PENDING_REPLY";
+    if (!String(action.text == null ? "" : action.text).trim()) return "EMPTY_SENTENCE";
+    return null;
+  },
+  apply(next, action) {
+    const req = findRequirement(next, action.reqId);
+    const submission = currentSubmission(next, req);
+    // 提意见只追加文字，不改变状态机的位置（v2 L112 / L118）。
+    submission.opinions.push({
+      id: "o" + next.seq++,
+      authorId: action.actorId,
+      kind: "comment",
+      text: String(action.text).trim(),
+    });
+  },
+};
+
+// —— 画布：草稿机制与自有内容 ——
+//
+// 结构性约束：所有画布写 action 只写 card.draft。card.visible 只能由
+// canvas/upload 与 canvas/exitEdit 两个 action 写入——这是"编辑中不泄漏"的保证。
+// 因而不存在任何能改动共识块字符串或删除共识块的入口（I4 靠"没有入口"实现）。
+
+function requireOwnCard(core, actorId, cardId) {
+  const card = core.cards[cardId];
+  if (!card || card.holderId !== actorId) return "NOT_HOLDER";
+  return null;
+}
+
+// 首次改动才产生草稿。此后 visible 与 draft 是两份独立数据，不共享引用。
+function ensureDraft(card) {
+  if (card.draft === null) card.draft = clone(card.visible);
+  return card.draft;
+}
+
+// 共识块矩形的夹取：先夹尺寸到 [BLOCK_MIN, CARD]，再把坐标夹进卡面（I5）。
+function clampRect(rect) {
+  const w = Math.min(Math.max(Number(rect.w) || 0, BLOCK_MIN.w), CARD.w);
+  const h = Math.min(Math.max(Number(rect.h) || 0, BLOCK_MIN.h), CARD.h);
+  const x = Math.min(Math.max(Number(rect.x) || 0, 0), CARD.w - w);
+  const y = Math.min(Math.max(Number(rect.y) || 0, 0), CARD.h - h);
+  return { x, y, w, h };
+}
+
+function clampPoint(x, y) {
+  return {
+    x: Math.min(Math.max(Number(x) || 0, 0), CARD.w),
+    y: Math.min(Math.max(Number(y) || 0, 0), CARD.h),
+  };
+}
+
+function draftContentOf(card) {
+  return card.draft === null ? card.visible : card.draft;
+}
+
+// 画布 action 的统一外壳：先校验持卡人（以及可选的额外校验），再确保草稿存在。
+function canvasHandler(checkExtra, run) {
+  return {
+    check(core, action) {
+      const problem = requireOwnCard(core, action.actorId, action.cardId);
+      if (problem) return problem;
+      return checkExtra ? checkExtra(core, action) : null;
+    },
+    apply(next, action) {
+      const card = next.cards[action.cardId];
+      run(next, card, ensureDraft(card), action);
+    },
+  };
+}
+
+const hasText = (core, act) => (draftContentOf(core.cards[act.cardId]).texts.some((t) => t.id === act.textId) ? null : "NOT_FOUND");
+const hasLink = (core, act) => (draftContentOf(core.cards[act.cardId]).links.some((l) => l.id === act.linkId) ? null : "NOT_FOUND");
+const hasBlock = (core, act) => (draftContentOf(core.cards[act.cardId]).blockInstances.some((i) => i.blockId === act.blockId) ? null : "NOT_FOUND");
+
+HANDLERS[ACTIONS.CANVAS_ADD_INK] = canvasHandler(null, (next, card, draft, action) => {
+  draft.ink.push({ id: "i" + next.seq++, points: (action.points || []).map((p) => ({ x: p.x, y: p.y })) });
+});
+
+// 撤回涂画。三种用法：
+//   all: true        → 清空全部涂画
+//   strokeId: "i3"   → 删掉指定那一笔
+//   都不给           → 删掉最后一笔（最常用的"撤销"）
+// 之前只能画不能撤，画歪一笔就没法补救。
+const hasInk = (core, act) => (draftContentOf(core.cards[act.cardId]).ink.length > 0 ? null : "NOT_FOUND");
+
+// 跨图层「撤回上一步」：涂画、文字、链接一起算，撤掉**最后放上去的那一个**。
+//
+// 不需要额外的历史栈：每个元素的 id 都带全局自增序号（i3 / t4 / l5，来自 core.seq），
+// 比较序号就知道谁最后加的。这样撤回顺序天然等于操作顺序，也不会因为刷新或换身份丢失
+// ——历史栈放内存里反而会在换身份时对不上。
+const idSeq = (id) => Number(String(id).replace(/^[A-Za-z]+/, "")) || 0;
+const canvasIsEmpty = (core, act) => {
+  const c = draftContentOf(core.cards[act.cardId]);
+  return c.ink.length + c.texts.length + c.links.length === 0 ? "NOT_FOUND" : null;
+};
+
+HANDLERS[ACTIONS.CANVAS_UNDO] = canvasHandler(canvasIsEmpty, (next, card, draft, action) => {
+  const candidates = [
+    ...draft.ink.map((s) => ({ kind: "ink", id: s.id })),
+    ...draft.texts.map((t) => ({ kind: "text", id: t.id })),
+    ...draft.links.map((l) => ({ kind: "link", id: l.id })),
+  ]
+    .map((item) => ({ ...item, seq: idSeq(item.id) }))
+    .sort((a, b) => b.seq - a.seq);
+  const last = candidates[0];
+  if (!last) return;
+  if (last.kind === "ink") draft.ink = draft.ink.filter((s) => s.id !== last.id);
+  else if (last.kind === "text") draft.texts = draft.texts.filter((t) => t.id !== last.id);
+  else draft.links = draft.links.filter((l) => l.id !== last.id);
+});
+
+HANDLERS[ACTIONS.CANVAS_REMOVE_INK] = canvasHandler(hasInk, (next, card, draft, action) => {
+  if (action.all === true) {
+    draft.ink = [];
+    return;
+  }
+  if (action.strokeId) {
+    draft.ink = draft.ink.filter((s) => s.id !== action.strokeId);
+    return;
+  }
+  draft.ink.pop();
+});
+
+HANDLERS[ACTIONS.CANVAS_ADD_TEXT] = canvasHandler(null, (next, card, draft, action) => {
+  const point = clampPoint(action.x, action.y);
+  draft.texts.push({ id: "t" + next.seq++, x: point.x, y: point.y, text: String(action.text == null ? "" : action.text) });
+});
+
+HANDLERS[ACTIONS.CANVAS_UPDATE_TEXT] = canvasHandler(hasText, (next, card, draft, action) => {
+  draft.texts.find((t) => t.id === action.textId).text = String(action.text == null ? "" : action.text);
+});
+
+HANDLERS[ACTIONS.CANVAS_REMOVE_TEXT] = canvasHandler(hasText, (next, card, draft, action) => {
+  draft.texts = draft.texts.filter((t) => t.id !== action.textId);
+});
+
+HANDLERS[ACTIONS.CANVAS_MOVE_TEXT] = canvasHandler(hasText, (next, card, draft, action) => {
+  const text = draft.texts.find((t) => t.id === action.textId);
+  const point = clampPoint(action.x, action.y);
+  text.x = point.x;
+  text.y = point.y;
+  if (Number.isFinite(action.w)) text.w = Math.max(24, Math.round(action.w));
+  if (Number.isFinite(action.h)) text.h = Math.max(18, Math.round(action.h));
+});
+
+HANDLERS[ACTIONS.CANVAS_MOVE_OWN_LINK] = canvasHandler(hasLink, (next, card, draft, action) => {
+  const link = draft.links.find((l) => l.id === action.linkId);
+  const point = clampPoint(action.x, action.y);
+  link.x = point.x;
+  link.y = point.y;
+});
+
+HANDLERS[ACTIONS.CANVAS_ADD_OWN_LINK] = canvasHandler(null, (next, card, draft, action) => {
+  const point = clampPoint(action.x, action.y);
+  draft.links.push({
+    id: "l" + next.seq++,
+    x: point.x,
+    y: point.y,
+    label: String(action.label == null ? "" : action.label),
+    targetRef: action.targetRef == null ? null : action.targetRef,
+    addedByHolderId: action.actorId, // I7：自有链接标为「持有人附加」
+  });
+});
+
+HANDLERS[ACTIONS.CANVAS_REMOVE_OWN_LINK] = canvasHandler(hasLink, (next, card, draft, action) => {
+  draft.links = draft.links.filter((l) => l.id !== action.linkId);
+});
+
+HANDLERS[ACTIONS.CANVAS_MOVE_BLOCK] = canvasHandler(hasBlock, (next, card, draft, action) => {
+  const instance = draft.blockInstances.find((i) => i.blockId === action.blockId);
+  const rect = clampRect({ x: action.x, y: action.y, w: instance.w, h: instance.h });
+  instance.x = rect.x;
+  instance.y = rect.y;
+});
+
+HANDLERS[ACTIONS.CANVAS_RESIZE_BLOCK] = canvasHandler(hasBlock, (next, card, draft, action) => {
+  const instance = draft.blockInstances.find((i) => i.blockId === action.blockId);
+  const rect = clampRect({ x: instance.x, y: instance.y, w: action.w, h: action.h });
+  instance.x = rect.x;
+  instance.y = rect.y;
+  instance.w = rect.w;
+  instance.h = rect.h;
+});
+
+// canvas/upload：用本机画布整体替换他人可见版本（v2 L64）。上传以本机坐标为准，
+// 因此编辑期间移动过的块保留移动后的坐标，不回落默认位置。
+HANDLERS[ACTIONS.CANVAS_UPLOAD] = {
+  check(core, action) {
+    const problem = requireOwnCard(core, action.actorId, action.cardId);
+    if (problem) return problem;
+    if (core.cards[action.cardId].draft === null) return "NO_DRAFT";
+    return null;
+  },
+  apply(next, action) {
+    const card = next.cards[action.cardId];
+    card.visible = card.draft;
+    card.uploadedOnce = true;
+    card.draft = null;
+    // 编辑期间收到的块随这次上传进入可见版本。
+    for (const instance of card.visible.blockInstances) instance.writtenToVisible = true;
+  },
+};
+
+// canvas/exitEdit：退出编辑且不上传（规格 §4.2 时刻 ②，v2 L60 的 C7）。
+// 未上传的自有改动被丢弃；编辑期间新到、可见版本尚无的块按默认位置写入；uploadedOnce 不变。
+HANDLERS[ACTIONS.CANVAS_EXIT_EDIT] = {
+  check(core, action) {
+    return requireOwnCard(core, action.actorId, action.cardId);
+  },
+  apply(next, action) {
+    const card = next.cards[action.cardId];
+    // v2 L27：只打开卡、不改画布，状态保持不变 —— 无草稿时是安全的空操作。
+    if (card.draft === null) return;
+
+    const arriving = card.draft.blockInstances.filter(
+      (instance) => !card.visible.blockInstances.some((existing) => existing.blockId === instance.blockId)
+    );
+    for (const instance of arriving) {
+      const position = defaultPosition(card.visible);
+      card.visible.blockInstances.push({
+        blockId: instance.blockId,
+        x: position.x,
+        y: position.y,
+        w: position.w,
+        h: position.h,
+        writtenToVisible: true,
+      });
+    }
+
+    card.draft = null; // 自有 ink / texts / links 随之整体丢弃；uploadedOnce 保持不变
+  },
+};
+
+// 「载入演示剧本」用：一键预置到走查「发放之后」那一刻（v2 L140–L142）。
+// 纯函数，与手工填写发放表单走的是同一条路径。
+function createDemoWorld() {
+  return createCore({
+    level: "第一关",
+    thing: "收集探测器成功的声音",
+    initiatorName: "策划",
+    participantNames: ["音乐", "程序"],
+  });
+}
+
+// 临时对话：交接级单例，全体持卡人共用一段（v2 L82 / L152「这段对话」为单数）。
+// 内容只留在这段对话中：不写入要求、不写入画布、不加打回次数、不生成总结。
+HANDLERS[ACTIONS.CHAT_SEND] = {
+  check(core, action) {
+    if (!core.holders[action.actorId]) return "NOT_HOLDER";
+    if (!String(action.text == null ? "" : action.text).trim()) return "EMPTY_SENTENCE";
+    return null;
+  },
+  apply(next, action) {
+    next.handover.chat.messages.push({
+      id: "m" + next.seq++,
+      fromId: action.actorId,
+      text: String(action.text).trim(),
+    });
+  },
+};
+
+globalThis.__HANDOFF_CORE__ = {
+  ACTIONS, TEXT, CARD, BLOCK_DEFAULT, BLOCK_MIN, BLOCK_GAP, LAYER_ORDER,
+  createCore, createDemoWorld, dispatch, cardStatus, cardOfHolder, holderList, emptyContent, clone,
+  requirementOf, requirementStatus, recordFor, suggestionFor, makeSuggestion,
+  currentSubmission, blockOf, blockRoundLabel, visibleContentFor, defaultPosition,
+  chatUnlocked, chatEmphasized, isCurrentAgreed, isRespondable, canView,
+  requireOwnCard, ensureDraft, clampRect, clampPoint,
+};
+/* === CORE-END === */
+
+/* === VIEW-BEGIN === */
+// 视图层（"前端"）：只读核心状态、只发 action，不实现任何业务规则。
+//
+// 设计要点：渲染函数是**纯字符串函数** `viewX(core, ui) → HTML 字符串`，不接触 DOM。
+// 好处有两条：① 渲染结果可以在 Node 里直接断言，不必靠目视；
+// ② 换布局只改这些函数与 CSS，核心层与测试完全不动。
+// 只有 renderApp 的挂载与指针拖拽需要浏览器。
+
+const STORAGE_KEY = CONFIG.storageKey;
+
+const VIEW_TEXT = {
+  appTitle: "交接功能原型 v2",
+  cardsHeading: "交接卡",
+  recordHeading: "对接记录",
+  canvasHeading: "画布",
+  writeTo: "写给",
+  pickReceiver: "先选接收人",
+  sentence: "原句",
+  submitButton: "提交要求",
+  attachLink: "附带文件链接",
+  attachNone: "不附带",
+  toReceiver: "给",
+  superseded: "已被改写",
+  acceptButton: "接受",
+  rejectButton: "打回",
+  commentButton: "提意见",
+  uploadButton: "上传",
+  exitEditButton: "退出编辑",
+  inkTool: "绘制",
+  textTool: "文字",
+  linkTool: "链接",
+  selectTool: "选择",
+  addTextButton: "加文字",
+  addLinkButton: "加链接",
+  // 选中工具之后必须有一个**看得见的按钮**来完成放置。
+  // 之前只有"选工具 → 去点画布"这一条路，没有任何提示——用户根本不知道要那样做。
+  placeButton: "放上画布",
+  undoStepButton: "撤回上一步",
+  undoInkButton: "撤回一笔",
+  clearInkButton: "清空涂画",
+  undoSomething: "已撤回上一步",
+  nothingToUndo: "画布上还没有可以撤回的内容",
+  inkUndone: "已撤回最后一笔",
+  inkCleared: "涂画已清空",
+  noInk: "画布上还没有涂画，先画一笔",
+  placeTextHint: "写完按回车，或点「放上画布」",
+  placeLinkHint: "选好后点「放上画布」，也可以直接按回车",
+  textPlaced: "文字已放上画布",
+  linkPlaced: "链接已放上画布",
+  uploaded: "已上传",
+  exitedEdit: "已退出编辑",
+  accepted: "已接受，这条达成共识",
+  rejected: "已打回，等待发起者重写",
+  commented: "意见已记到对接记录里",
+  submitted: "要求已提交，等对方回应",
+  suggestionAdopted: "已用这句替换原句",
+  needTextFirst: "先写下要放的文字，再按回车或点「放上画布」",
+  noRecord: "其他持卡人的对接记录中没有这一条",
+  editingBadge: "编辑中",
+  seeingPreEdit: "以下是对方这次编辑前的版本",
+  readOnly: "只读",
+  emptyCanvas: "空画布",
+  ownLinkTag: "持有人附加",
+  projectHeading: "项目管理",
+  projectDiskNotice: "演示不写入真实磁盘；该项目对象原有的写入权限不变。",
+  chatHeading: "临时对话",
+  chatClosedNotice: "打回超过三次后，这里会高亮提示",
+  chatOpenNotice: "已经打回超过三次，可以临时聊一次。",
+  chatScopeNotice: "对话不写入要求，不写入画布，也不生成总结。",
+  chatSend: "发送",
+  closeButton: "收起",
+  demoScriptButton: "载入演示剧本",
+  resetButton: "清空演示",
+  storageDisabled: "本次演示数据不会保存",
+  signLabel: "临时聊天",
+  setupHeading: "发放",
+  levelLabel: "关卡",
+  thingLabel: "东西",
+  initiatorLabel: "发起者",
+  participantsLabel: "参与的人",
+  issueButton: "发放",
+  rejectNotePlaceholder: "可附一句或不附",
+  commentPlaceholder: "提一句意见",
+  chatPlaceholder: "说一句",
+  needThing: "先把「东西」填上",
+  textPlaceholder: "要放的文字",
+  errorPrefix: "这一步不能做：",
+  renderFailed: "界面渲染出错，已停在安全状态。可以点「清空演示」重新开始。",
+  pickReceiverFirst: "先在「写给」里选一位接收人",
+  rejectCountLabel: "打回次数",
+  whoamiLabel: "当前",
+  initiatorTag: "发起者",
+  // 演示控制台：身份切换等演示脚手架全部收在这里，产品界面里不出现。
+  consoleHeading: "演示控制台",
+  consoleHint: "按 ~ 或 Esc 关闭",
+  consoleIdentity: "以谁的身份看",
+  consoleDemo: "演示控制",
+  consoleState: "当前局面",
+  consoleSetupHint: "还没有交接。可以载入演示剧本，或关掉控制台去填发放表单。",
+  consoleClose: "关闭",
+  // 书写建议以「批注」呈现：贴在书写区旁边的一份注记，像文稿里的批注。
+  annotationTag: "助手的批注",
+  annotationScope: "只给你看 · 不进卡",
+  annotationUsableLabel: "可改用的文字",
+  adoptButton: "用这句",
+  adoptHint: "点了才会改你的句子；系统不自动替换",
+  // 助手边界：讲清它读什么、写什么、以及五件明确不碰的事（每条都能当场验证）。
+  boundaryTitle: "建议会去哪",
+  boundaryReads: "会看到",
+  boundaryWrites: "只会留下",
+  boundaryNot: "不会动这些",
+  boundaryReadList: "你正在写的句子、接收人、关卡、东西",
+  boundaryWriteList: "一句你可以选用的建议",
+};
+
+// 错误码 → 中文提示。原则：观众看到的必须是能读懂的一句话，不是 ALREADY_AGREED。
+const ERROR_TEXT = {
+  UNKNOWN_ACTION: "这个操作在当前版本里还不存在",
+  NOT_INITIATOR: "只有发起者能书写和提交要求",
+  NOT_RECEIVER: "只有这一条的接收人能接受、打回或提意见",
+  NOT_HOLDER: "只有这张卡的持卡人能改它",
+  NOT_FOUND: "找不到要操作的对象，可能已经被删掉了",
+  EMPTY_SENTENCE: "这一句还是空的，先写一句再说",
+  NO_SUBMISSION: "这一条还没有提交过",
+  ALREADY_AGREED: "这一条已经达成共识，不能再次接受",
+  NOT_PENDING_REPLY: "这一条已经结束回应，等发起者重新提交后才能再回应",
+  AGREED_CANNOT_REVISE: "已经达成共识的条不能直接改；要改先请接收人打回，或另开一条要求",
+  NO_SUGGESTION: "现在还没有可以采用的建议",
+  BAD_SUGGESTION: "外部生成的建议格式不对，这一条仍按规则版处理",
+  RECEIVER_IS_INITIATOR: "发起者不能把自己写成接收人",
+  NO_DRAFT: "还没改过画布，没有可上传的内容",
+  CHAT_LOCKED: "打回满三次后才可以临时聊",
+};
+
+const errorText = (code) => ERROR_TEXT[code] || code;
+
+const STATUS_TEXT_KEY = { neverUploaded: "statusNeverUploaded", uploaded: "statusUploaded", editing: "statusEditing" };
+const STATE_TEXT_KEY = { pendingReply: "statePendingReply", agreed: "stateAgreed", needsRewrite: "stateNeedsRewrite" };
+
+// 演示用的内置项目对象。打开链接时高亮其中一个；不访问真实磁盘。
+const PROJECT_OBJECTS = [
+  { label: "第一关_探测器成功音效.wav", ref: "声音/第一关_探测器成功音效.wav" },
+  { label: "第一关_探测器.png", ref: "图/第一关_探测器.png" },
+  { label: "第一关.unity", ref: "关卡文件/第一关.unity" },
+  { label: "修改历史.log", ref: "修改历史/修改历史.log" },
+];
+
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+const statusText = (status) => TEXT[STATUS_TEXT_KEY[status]];
+const stateText = (state) => TEXT[STATE_TEXT_KEY[state]];
+
+// 界面状态：不进核心、不持久化。这是"换布局不用碰核心"的关键——
+// 当前以谁的身份在看、选中哪张卡、哪个面板开着，核心层一概不知情。
+function createUi(core, currentHolderId) {
+  const holders = holderList(core);
+  const me = currentHolderId || (holders[0] ? holders[0].id : null);
+  const myCard = me ? cardOfHolder(core, me) : null;
+  return {
+    currentHolderId: me,
+    selectedCardId: myCard ? myCard.id : null,
+    composingReqId: null,
+    composerReceiverId: null,
+    tool: "select",
+    panel: null,
+    projectRef: null,
+    notice: "",
+  };
+}
+
+// 顶栏只放真实应用会有的信息：这次交接是什么、现在是谁在用。
+// 身份切换、载入演示剧本、清空演示都是演示脚手架，全部收进 ~ 控制台——
+// 摆在顶栏会让人以为真实产品里也有"切换身份"这种东西。
+function viewTopbar(core, ui) {
+  const me = ui && ui.currentHolderId ? core.holders[ui.currentHolderId] : null;
+  return `<header class="topbar">
+    <h1>${escapeHtml(VIEW_TEXT.appTitle)}</h1>
+    <span class="handover-badge" data-handover>${escapeHtml(core.handover.level)} · ${escapeHtml(core.handover.thing)}</span>
+    ${me ? `<span class="whoami" data-whoami>${escapeHtml(VIEW_TEXT.whoamiLabel)}：${escapeHtml(me.name)}</span>` : ""}
+  </header>`;
+}
+
+function viewConsoleState(core) {
+  const requirements = core.requirements.length
+    ? core.requirements
+        .map(
+          (req) =>
+            `<li>给 ${escapeHtml(core.holders[req.receiverId].name)}：${escapeHtml(stateText(requirementStatus(core, req.id)) || "—")}</li>`
+        )
+        .join("")
+    : "<li>（还没有任何要求）</li>";
+
+  const cards = holderList(core)
+    .map((h) => {
+      const card = cardOfHolder(core, h.id);
+      return `<li>${escapeHtml(h.name)}：${escapeHtml(statusText(cardStatus(core, card.id)))} · ${card.visible.blockInstances.length} 块</li>`;
+    })
+    .join("");
+
+  return `<dl class="console-state">
+    <dt>${escapeHtml(VIEW_TEXT.rejectCountLabel)}</dt><dd>${core.handover.rejectCount}</dd>
+    <dt>要求</dt><dd><ul>${requirements}</ul></dd>
+    <dt>交接卡</dt><dd><ul>${cards}</ul></dd>
+  </dl>`;
+}
+
+// 演示控制台。默认不渲染；由 ~ 键调出。
+function viewConsole(core, ui, consoleOpen, config) {
+  if (!consoleOpen) return "";
+  const settings = config || CONFIG;
+
+  const identity = core
+    ? `<section class="console-section">
+        <h3>${escapeHtml(VIEW_TEXT.consoleIdentity)}</h3>
+        <div class="console-holders">${holderList(core)
+          .map((h) => {
+            const pressed = ui && h.id === ui.currentHolderId ? ' aria-pressed="true"' : "";
+            const tag = h.id === core.handover.initiatorId ? "（" + VIEW_TEXT.initiatorTag + "）" : "";
+            return `<button type="button" data-action="switch-holder" data-holder-id="${h.id}"${pressed}>${escapeHtml(h.name)}${escapeHtml(tag)}</button>`;
+          })
+          .join("")}</div>
+      </section>`
+    : `<p class="console-empty">${escapeHtml(VIEW_TEXT.consoleSetupHint)}</p>`;
+
+  const demo = `<section class="console-section">
+      <h3>${escapeHtml(VIEW_TEXT.consoleDemo)}</h3>
+      <div class="console-holders">
+        ${settings.showDemoScriptButton ? `<button type="button" data-action="load-demo-script">${escapeHtml(VIEW_TEXT.demoScriptButton)}</button>` : ""}
+        <button type="button" data-action="reset-demo">${escapeHtml(VIEW_TEXT.resetButton)}</button>
+      </div>
+    </section>`;
+
+  const state = core ? `<section class="console-section"><h3>${escapeHtml(VIEW_TEXT.consoleState)}</h3>${viewConsoleState(core)}</section>` : "";
+
+  return `<aside class="console" data-console>
+    <header>
+      <h2>${escapeHtml(VIEW_TEXT.consoleHeading)}</h2>
+      <span class="tiny">${escapeHtml(VIEW_TEXT.consoleHint)}</span>
+      <button type="button" data-action="toggle-console">${escapeHtml(VIEW_TEXT.consoleClose)}</button>
+    </header>
+    ${identity}
+    ${demo}
+    ${state}
+  </aside>`;
+}
+
+function viewCards(core, ui) {
+  const rows = holderList(core)
+    .map((h) => {
+      const card = cardOfHolder(core, h.id);
+      const status = cardStatus(core, card.id);
+      const selected = ui.selectedCardId === card.id ? " is-selected" : "";
+      const own = h.id === ui.currentHolderId ? " is-own" : "";
+      return `<li class="card-row${selected}${own}" data-action="select-card" data-card-id="${card.id}">
+        <span class="card-holder">${escapeHtml(h.name)}</span>
+        <span class="badge" data-status-badge data-status="${status}">${escapeHtml(statusText(status))}</span>
+        <span class="card-blocks" data-block-count>${card.visible.blockInstances.length}</span>
+      </li>`;
+    })
+    .join("");
+  return `<section class="panel" data-panel="cards"><h2>${escapeHtml(VIEW_TEXT.cardsHeading)}</h2><ul class="card-list">${rows}</ul></section>`;
+}
+
+// 书写建议以「批注」呈现：一份贴在书写区下面的注记，像文稿边上的批注。
+// 之所以做成批注而不是一行提示：模型给的「可能产生的理解」通常有一两百字，
+// 塞进输入框上方会变成一堵墙；批注的形式装得下，而且一句「只给你看 · 不进卡」就把边界摆在眼前。
+// 单独抽出这个函数，是因为输入原句时要能在不重绘整页的前提下只换这一块（否则会丢输入焦点）。
+function viewSuggestion(suggestion, sentence, reqId) {
+  if (!suggestion) return `<div class="annotation is-empty" data-suggestion></div>`;
+  return `<aside class="annotation" data-suggestion>
+    <header class="annotation-head">
+      <span class="annotation-tag">${escapeHtml(VIEW_TEXT.annotationTag)}</span>
+      <span class="tiny muted">${escapeHtml(VIEW_TEXT.annotationScope)}</span>
+    </header>
+    ${sentence ? `<blockquote class="annotation-quote">${escapeHtml(sentence)}</blockquote>` : ""}
+    <p class="annotation-understanding" data-understanding>${escapeHtml(suggestion.understanding)}</p>
+    <p class="annotation-usable">${escapeHtml(VIEW_TEXT.annotationUsableLabel)}：<b data-usable>${escapeHtml(suggestion.usable)}</b></p>
+    <footer class="annotation-foot">
+      <button type="button" data-action="adopt-suggestion" data-req-id="${escapeHtml(reqId || "")}">${escapeHtml(VIEW_TEXT.adoptButton)}</button>
+      <span class="tiny muted">${escapeHtml(VIEW_TEXT.adoptHint)}</span>
+    </footer>
+    <p class="tiny muted">${escapeHtml(TEXT.suggestionDisclaimer)}</p>
+  </aside>`;
+}
+
+// 助手边界：每一条「不碰」都配一句"怎么看"，让它当场可验证，而不是一句口号。
+const BOUNDARY_NOT = [
+  { what: "不改你的原句", how: "只有点「用这句」才会换掉" },
+  { what: "不写进交接卡", how: "提交之后，建议就从这里消失" },
+  { what: "对方看不到", how: "换到接收人，这边是空的" },
+  { what: "不替人点按钮", how: "接受、打回、提意见还是接收人自己点" },
+  { what: "不进临时聊天", how: "也不会生成一段总结" },
+];
+
+function viewBoundary() {
+  const not = BOUNDARY_NOT.map(
+    (b) => `<li><b>${escapeHtml(b.what)}</b><span class="tiny muted">${escapeHtml(b.how)}</span></li>`
+  ).join("");
+  return `<details class="boundary" data-boundary>
+    <summary>${escapeHtml(VIEW_TEXT.boundaryTitle)}</summary>
+    <div class="boundary-grid">
+      <section><h4>${escapeHtml(VIEW_TEXT.boundaryReads)}</h4><p>${escapeHtml(VIEW_TEXT.boundaryReadList)}</p></section>
+      <section><h4>${escapeHtml(VIEW_TEXT.boundaryWrites)}</h4><p>${escapeHtml(VIEW_TEXT.boundaryWriteList)}</p></section>
+      <section><h4>${escapeHtml(VIEW_TEXT.boundaryNot)}</h4><ul class="boundary-not">${not}</ul></section>
+    </div>
+  </details>`;
+}
+
+function viewComposer(core, ui) {
+  const receivers = holderList(core)
+    .filter((h) => h.id !== core.handover.initiatorId)
+    .map((h) => `<option value="${h.id}"${ui.composerReceiverId === h.id ? " selected" : ""}>${escapeHtml(h.name)}</option>`)
+    .join("");
+
+  const req = ui.composingReqId ? requirementOf(core, ui.composingReqId) : null;
+  const agreed = req ? isCurrentAgreed(core, req) : false;
+  const suggestion = req ? suggestionFor(core, req.id, ui.currentHolderId) : null;
+
+  const linkOptions = [`<option value="">${escapeHtml(VIEW_TEXT.attachNone)}</option>`]
+    .concat(PROJECT_OBJECTS.map((o) => `<option value="${escapeHtml(o.ref)}">${escapeHtml(o.label)}</option>`))
+    .join("");
+
+  return `<div class="composer" data-composer>
+    <label class="field"><span>${escapeHtml(VIEW_TEXT.writeTo)}</span>
+      <select data-bind="composer-receiver"><option value="">${escapeHtml(VIEW_TEXT.pickReceiver)}</option>${receivers}</select>
+    </label>
+    <label class="field"><span>${escapeHtml(VIEW_TEXT.sentence)}</span>
+      <textarea data-bind="composer-text"${ui.composerReceiverId ? "" : " disabled"}>${escapeHtml(req ? req.draftText : "")}</textarea>
+    </label>
+    ${viewSuggestion(suggestion, req ? req.draftText : "", req ? req.id : "")}
+    <label class="field attach-field"><span>${escapeHtml(VIEW_TEXT.attachLink)}</span>
+      <span class="attach-controls">
+        <select data-bind="composer-link">${linkOptions}</select>
+        <button type="button" data-action="submit-requirement"${req && !agreed ? "" : " disabled"}>${escapeHtml(VIEW_TEXT.submitButton)}</button>
+      </span>
+    </label>
+  </div>`;
+}
+
+function viewSubmission(core, ui, req, sub, isCurrent) {
+  const canRespond =
+    isCurrent && ui.currentHolderId === req.receiverId && isRespondable(core, req);
+
+  const opinions = sub.opinions
+    .map((o) => `<li class="opinion" data-kind="${o.kind}">${escapeHtml(core.holders[o.authorId].name)}：${escapeHtml(o.text)}</li>`)
+    .join("");
+
+  const link = sub.attachmentLink
+    ? `<button type="button" class="link" data-action="open-link" data-ref="${escapeHtml(sub.attachmentLink.targetRef)}">${escapeHtml(sub.attachmentLink.label)}</button>`
+    : "";
+
+  const actions = canRespond
+    ? `<div class="actions" data-actions>
+        <button type="button" data-action="accept" data-req-id="${req.id}">${escapeHtml(VIEW_TEXT.acceptButton)}</button>
+        <span class="inline">
+          <textarea data-bind="reject-note" data-req-id="${req.id}" placeholder="${escapeHtml(VIEW_TEXT.rejectNotePlaceholder)}"></textarea>
+          <button type="button" data-action="reject" data-req-id="${req.id}">${escapeHtml(VIEW_TEXT.rejectButton)}</button>
+        </span>
+        <span class="inline">
+          <textarea data-bind="comment-text" data-req-id="${req.id}" placeholder="${escapeHtml(VIEW_TEXT.commentPlaceholder)}"></textarea>
+          <button type="button" data-action="comment" data-req-id="${req.id}">${escapeHtml(VIEW_TEXT.commentButton)}</button>
+        </span>
+      </div>`
+    : "";
+
+  return `<div class="submission${isCurrent ? " is-current" : " is-history"}" data-submission="${sub.id}" data-state="${sub.state}">
+    <p class="sentence">${escapeHtml(sub.rawSentence)}</p>
+    <p class="tiny muted"><span data-state-label>${escapeHtml(stateText(sub.state))}</span>${isCurrent ? "" : " · " + escapeHtml(VIEW_TEXT.superseded)}</p>
+    ${link}
+    <ul class="opinions">${opinions}</ul>
+    ${actions}
+  </div>`;
+}
+
+function viewRequirement(core, ui, req) {
+  const submissions = req.submissions
+    .map((sub) => viewSubmission(core, ui, req, sub, sub.id === req.currentSubmissionId))
+    .join("");
+  // 必须让双方都看得出"这是谁和谁的事"。
+  // 之前只有「给 音乐」和一句要求，以音乐身份看过去根本不知道是谁发来的。
+  const fromName = core.holders[core.handover.initiatorId].name;
+  const toName = core.holders[req.receiverId].name;
+  const forMe = req.receiverId === ui.currentHolderId;
+  return `<article class="requirement" data-requirement="${req.id}">
+    <header>
+      <span class="pill" data-requirement-route="${escapeHtml(fromName)}→${escapeHtml(toName)}">${escapeHtml(fromName)} → ${escapeHtml(toName)}</span>
+      ${forMe ? `<span class="tiny muted" data-requirement-for-me>这件事是给你的</span>` : ""}
+      <span class="tiny muted" data-requirement-author>要求由 ${escapeHtml(fromName)} 提出</span>
+    </header>
+    ${submissions}
+  </article>`;
+}
+
+function viewRecord(core, ui) {
+  const isInitiator = ui.currentHolderId === core.handover.initiatorId;
+  const rows = recordFor(core, ui.currentHolderId);
+  const body = [];
+
+  if (isInitiator) body.push(viewComposer(core, ui));
+
+  if (rows.length === 0 && !isInitiator) {
+    body.push(`<p class="muted" data-empty-record>${escapeHtml(VIEW_TEXT.noRecord)}</p>`);
+  } else {
+    for (const req of rows) body.push(viewRequirement(core, ui, req));
+  }
+
+  // 边界说明只给发起者看：助手只在他的书写位置上活动。
+  if (isInitiator) body.push(viewBoundary());
+
+  return `<section class="panel" data-panel="record"><h2>${escapeHtml(VIEW_TEXT.recordHeading)}</h2>${body.join("")}</section>`;
+}
+
+// —— 视图层的纯决策 ——
+//
+// 事件处理器里"该复用哪条要求""该不该落 action"这类判断不依赖 DOM 渲染，
+// 只依赖平凡的输入值，因此抽成纯函数，可以在 Node 里直接断言。
+// 独立评审指出：C1、I5 这两类问题本可被测试挡住——这一层就是为此存在的。
+
+// 换身份后的界面状态。发起者"正在写的句子"跨身份保留：
+// 演示时换人只能靠身份按钮，切过去再切回来不该丢掉书写进度（v2 L96 的建议挂在发起者书写位置）。
+function planSwitchHolder(core, ui, holderId) {
+  const card = cardOfHolder(core, holderId);
+  return Object.assign({}, ui, {
+    currentHolderId: holderId,
+    selectedCardId: card ? card.id : null,
+    panel: null,
+  });
+}
+
+// 该接收人有没有一条"还能被发起者接着写"的要求？待回应、待重写都算；
+// 已共识的不算——v2 L118 规定已共识的条不能由发起者主动改写（T11）。
+function reusableRequirementId(core, initiatorId, receiverId) {
+  const candidates = recordFor(core, initiatorId).filter((r) => r.receiverId === receiverId && !isCurrentAgreed(core, r));
+  return candidates.length ? candidates[candidates.length - 1].id : null;
+}
+
+// 选中接收人之后该做什么。刻意**不**在这里新建要求：
+// 否则为了看一眼下拉选项而点一下，就会在接收人侧留下一条没有内容的「给 X」，
+// 直接推翻 v2「其他持卡人的对接记录中没有这一条」。要求实例推迟到第一次输入时才建。
+function planComposerReceiver(core, ui, receiverId) {
+  if (!receiverId) {
+    return { ui: Object.assign({}, ui, { composerReceiverId: null, composingReqId: null }), actions: [] };
+  }
+  return {
+    ui: Object.assign({}, ui, {
+      composerReceiverId: receiverId,
+      composingReqId: reusableRequirementId(core, ui.currentHolderId, receiverId),
+    }),
+    actions: [],
+  };
+}
+
+// 指针交互的提交阈值（像素）。低于它视为"点了一下"，不落 any action。
+const DRAG_THRESHOLD = 3;
+
+// 抬手时判断这次交互要不要落 action。
+// 零位移的点击必须不落：否则"只打开卡、不改画布，状态保持不变"（v2 L27）在演示中是假的，
+// 而且会把走查里"音乐的卡不在编辑中，新块立即出现在可见版本上"那一幕毁掉。
+function planPointerCommit(drag, endPoint) {
+  if (!drag) return null;
+  if (drag.mode === "ink") return drag.points.length > 1 ? { kind: "ink" } : null;
+  const moved =
+    Math.abs(endPoint.clientX - drag.startX) > DRAG_THRESHOLD || Math.abs(endPoint.clientY - drag.startY) > DRAG_THRESHOLD;
+  return moved ? { kind: drag.mode } : null;
+}
+
+// —— 点击路由（纯函数）——
+//
+// 事件处理器只做两件事：把 DOM 读成一份载荷、把返回的下一步应用上去。
+// 路由本身放在这里，是因为它必须能被断言——曾经"发放"按钮的守卫写成
+// `if (!runtime.core) return`，而发放阶段 core 本来就是 null，
+// 于是整个发放表单点了没反应，而当时 92 条断言全绿：渲染函数测过了，接线没测。
+
+// 没有交接时也能用的入口。其余动作在没有交接时一律安静挡掉。
+// toggle-console 必须在这里：发放表单阶段正是最需要「载入演示剧本」的时候。
+const SETUP_ACTIONS = ["issue-handover", "reset-demo", "load-demo-script", "toggle-console"];
+const actionUsableWithoutHandover = (action) => SETUP_ACTIONS.includes(action);
+
+function planIssueHandover(form) {
+  const thing = String((form && form.thing) || "").trim();
+  if (!thing) return { ok: false, error: "EMPTY_THING" };
+  return {
+    ok: true,
+    core: createCore({
+      level: form.level,
+      thing,
+      initiatorName: form.initiatorName,
+      participantNames: (form.participantNames || []).filter((n) => n !== form.initiatorName),
+    }),
+  };
+}
+
+// 发放表单的字段回填。没有交接时也必须工作，否则「东西」永远填不进去、发放永远失败。
+function applySetupInput(form, bind, value) {
+  if (bind === "thing") return Object.assign({}, form, { thing: value });
+  return form;
+}
+
+function applySetupChange(form, bind, value, checked) {
+  if (bind === "level") return Object.assign({}, form, { level: value });
+  if (bind === "initiator") return Object.assign({}, form, { initiatorName: value });
+  if (bind === "participant") {
+    let names = form.participantNames;
+    if (checked) names = names.includes(value) ? names : names.concat(value);
+    else names = names.filter((n) => n !== value);
+    return Object.assign({}, form, { participantNames: names });
+  }
+  return form;
+}
+
+// 把一组 action 依次 dispatch 到当前核心状态上；任一失败便记下错误码。
+function runActions(core, actions) {
+  let next = core;
+  let error = null;
+  for (const action of actions) {
+    const result = dispatch(next, action);
+    if (result.ok) next = result.core;
+    else error = result.error;
+  }
+  return { core: next, error };
+}
+
+// 点击路由。返回 { core, ui, form, notice, resetStorage, consoleOpen }。
+//
+// 放置类动作（回车 / 「放上画布」）的默认落点：从上往下依次排开，
+// 这样连放几句不会全叠在同一个点上（看起来像"没反应"）。
+function defaultSpot(core, cardId, layer) {
+  const card = core && core.cards ? core.cards[cardId] : null;
+  const content = card ? card.draft || card.visible : null;
+  const count = content && Array.isArray(content[layer]) ? content[layer].length : 0;
+  const step = 34;
+  const maxY = (CARD && CARD.h ? CARD.h : 480) - 70;
+  return { x: 28, y: Math.min(28 + count * step, maxY) };
+}
+
+function planClick(core, ui, click) {
+  const base = {
+    core,
+    ui,
+    form: click.form,
+    notice: "",
+    resetStorage: false,
+    consoleOpen: !!click.consoleOpen,
+  };
+  const action = click.action;
+
+  if (!core && !actionUsableWithoutHandover(action)) return base;
+
+  const apply = (actions, successText) => {
+    const out = runActions(core, actions);
+    return Object.assign({}, base, {
+      core: out.core,
+      notice: out.error ? errorText(out.error) : successText || "",
+    });
+  };
+
+  switch (action) {
+    case "toggle-console":
+      return Object.assign({}, base, { consoleOpen: !click.consoleOpen });
+    case "issue-handover": {
+      const planned = planIssueHandover(click.form);
+      if (!planned.ok) return Object.assign({}, base, { notice: VIEW_TEXT.needThing });
+      return Object.assign({}, base, { core: planned.core, ui: createUi(planned.core), form: null });
+    }
+    case "load-demo-script": {
+      const next = createDemoWorld();
+      return Object.assign({}, base, { core: next, ui: createUi(next), form: null, consoleOpen: false });
+    }
+    case "reset-demo":
+      return Object.assign({}, base, { core: null, ui: null, form: defaultSetupForm(), resetStorage: true, consoleOpen: false });
+
+    case "switch-holder":
+      // 换完身份就收起控制台：真实场景里你是换到了另一台设备上，不是留在一个悬浮面板里。
+      return Object.assign({}, base, { ui: planSwitchHolder(core, ui, click.holderId), consoleOpen: false });
+    case "select-card":
+      return Object.assign({}, base, { ui: Object.assign({}, ui, { selectedCardId: click.cardId }) });
+    case "set-tool":
+      return Object.assign({}, base, { ui: Object.assign({}, ui, { tool: click.tool }) });
+
+    case "submit-requirement":
+      return apply([
+        { type: ACTIONS.REQUIREMENT_SUBMIT, actorId: ui.currentHolderId, reqId: ui.composingReqId, attachmentLink: click.attachmentLink || null },
+      ], VIEW_TEXT.submitted);
+    case "adopt-suggestion":
+      return apply([
+        {
+          type: ACTIONS.REQUIREMENT_ADOPT_SUGGESTION,
+          actorId: ui.currentHolderId,
+          reqId: click.reqId || ui.composingReqId,
+        },
+      ], VIEW_TEXT.suggestionAdopted);
+    case "accept":
+      return apply([{ type: ACTIONS.SUBMISSION_ACCEPT, actorId: ui.currentHolderId, reqId: click.reqId }], VIEW_TEXT.accepted);
+    case "reject":
+      return apply([{ type: ACTIONS.SUBMISSION_REJECT, actorId: ui.currentHolderId, reqId: click.reqId, note: click.note }], VIEW_TEXT.rejected);
+    case "comment":
+      return apply([{ type: ACTIONS.SUBMISSION_COMMENT, actorId: ui.currentHolderId, reqId: click.reqId, text: click.comment }], VIEW_TEXT.commented);
+    case "upload":
+      return apply([{ type: ACTIONS.CANVAS_UPLOAD, actorId: ui.currentHolderId, cardId: click.cardId }], VIEW_TEXT.uploaded);
+
+    // 画歪一笔没救是硬伤，所以给两条退路：撤回上一步 / 清空涂层。
+    // 「撤回上一步」跨图层：涂画、文字、链接按操作顺序一起撤。
+    case "undo-step": {
+      const card = core.cards[click.cardId];
+      const content = card ? card.draft || card.visible : null;
+      const total = content ? content.ink.length + content.texts.length + content.links.length : 0;
+      if (total === 0) return Object.assign({}, base, { notice: VIEW_TEXT.nothingToUndo });
+      return apply([{ type: ACTIONS.CANVAS_UNDO, actorId: ui.currentHolderId, cardId: click.cardId }], VIEW_TEXT.undoSomething);
+    }
+    case "undo-ink":
+    case "clear-ink": {
+      const card = core.cards[click.cardId];
+      const content = card ? card.draft || card.visible : null;
+      if (!content || content.ink.length === 0) return Object.assign({}, base, { notice: VIEW_TEXT.noInk });
+      return action === "undo-ink"
+        ? apply([{ type: ACTIONS.CANVAS_REMOVE_INK, actorId: ui.currentHolderId, cardId: click.cardId }], VIEW_TEXT.inkUndone)
+        : apply([{ type: ACTIONS.CANVAS_REMOVE_INK, actorId: ui.currentHolderId, cardId: click.cardId, all: true }], VIEW_TEXT.inkCleared);
+    }
+    case "exit-edit":
+      return apply([{ type: ACTIONS.CANVAS_EXIT_EDIT, actorId: ui.currentHolderId, cardId: click.cardId }], VIEW_TEXT.exitedEdit);
+
+    // 回车 / 「放上画布」按钮走这里：落点自动排开，不需要用户先去点画布。
+    case "place-text": {
+      const text = String(click.text == null ? "" : click.text).trim();
+      if (!text) return Object.assign({}, base, { notice: VIEW_TEXT.needTextFirst });
+      return apply(
+        [{ type: ACTIONS.CANVAS_ADD_TEXT, actorId: ui.currentHolderId, cardId: ui.selectedCardId, ...defaultSpot(core, ui.selectedCardId, "texts"), text }],
+        VIEW_TEXT.textPlaced
+      );
+    }
+    case "place-link": {
+      // 按钮来的是 placeRef（下拉框的值），画布落点来的是 ref；两个都认
+      const ref = String(click.placeRef || click.ref || "");
+      if (!ref) return Object.assign({}, base, { notice: VIEW_TEXT.needLinkFirst });
+      const found = PROJECT_OBJECTS.find((o) => o.ref === ref);
+      return apply(
+        [{
+          type: ACTIONS.CANVAS_ADD_OWN_LINK,
+          actorId: ui.currentHolderId,
+          cardId: ui.selectedCardId,
+          ...defaultSpot(core, ui.selectedCardId, "links"),
+          label: found ? found.label : ref,
+          targetRef: ref,
+        }],
+        VIEW_TEXT.linkPlaced
+      );
+    }
+    case "remove-own-text":
+      return apply([{ type: ACTIONS.CANVAS_REMOVE_TEXT, actorId: ui.currentHolderId, cardId: ui.selectedCardId, textId: click.textId }]);
+    case "remove-own-link":
+      return apply([{ type: ACTIONS.CANVAS_REMOVE_OWN_LINK, actorId: ui.currentHolderId, cardId: ui.selectedCardId, linkId: click.linkId }]);
+
+    case "open-link":
+      return Object.assign({}, base, { ui: Object.assign({}, ui, { panel: "project", projectRef: click.ref }) });
+    case "close-panel":
+      return Object.assign({}, base, { ui: Object.assign({}, ui, { panel: null }) });
+    case "toggle-chat":
+      return Object.assign({}, base, { ui: Object.assign({}, ui, { panel: ui.panel === "chat" ? null : "chat" }) });
+    case "send-chat":
+      return apply([{ type: ACTIONS.CHAT_SEND, actorId: ui.currentHolderId, text: click.chatText }]);
+
+    default:
+      return base;
+  }
+}
+
+// —— 持久化：把 storage 作为参数注入，便于在 Node 里用假 storage 测降级路径 ——
+
+// 卡内容的形状校验：共识块那一层最容易在手工改坏 JSON 时缺字段。
+function isCanvasContent(value) {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    Array.isArray(value.ink) &&
+    Array.isArray(value.texts) &&
+    Array.isArray(value.links) &&
+    Array.isArray(value.blockInstances)
+  );
+}
+
+// 只校验顶层键是不够的：顶层齐全而内部缺字段的数据会一路走到渲染里抛异常，
+// 结果是没有任何提示的白屏——正是 Review Focus 第 5 条要求不得发生的那种情况。
+function isCoreShape(value) {
+  if (!value || typeof value !== "object" || typeof value.seq !== "number") return false;
+
+  const handover = value.handover;
+  if (!handover || typeof handover !== "object") return false;
+  if (typeof handover.level !== "string" || typeof handover.thing !== "string") return false;
+  if (typeof handover.rejectCount !== "number" || !Number.isFinite(handover.rejectCount)) return false;
+  if (!Array.isArray(handover.holderIds)) return false;
+  if (!handover.chat || !Array.isArray(handover.chat.messages)) return false;
+  if (!value.holders || typeof value.holders !== "object") return false;
+  if (!value.cards || typeof value.cards !== "object") return false;
+  if (!value.blocks || typeof value.blocks !== "object") return false;
+  if (!Array.isArray(value.requirements)) return false;
+
+  if (!value.holders[handover.initiatorId]) return false;
+  for (const holderId of handover.holderIds) {
+    const holder = value.holders[holderId];
+    if (!holder || !value.cards[holder.cardId]) return false;
+  }
+  for (const card of Object.values(value.cards)) {
+    if (!card || typeof card !== "object") return false;
+    if (typeof card.uploadedOnce !== "boolean") return false;
+    if (!isCanvasContent(card.visible)) return false;
+    if (card.draft !== null && !isCanvasContent(card.draft)) return false;
+  }
+  return true;
+}
+
+function readStoredCore(storage) {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return isCoreShape(parsed) ? parsed : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function writeStoredCore(storage, core) {
+  if (!storage) return false;
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify(core));
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+// —— 画布渲染 ——
+//
+// 逐层遍历核心层导出的 LAYER_ORDER，而不是在这里再写一遍层序。
+// 层序是"绘制层位于共识块之下"（I6）这条约束的单一事实来源。
+
+function renderInkLayer(content) {
+  const paths = content.ink
+    .map((stroke) => {
+      const d = stroke.points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+      return `<path d="${d}" />`;
+    })
+    .join("");
+  // 预置一条空的实时笔迹：绘制过程中只改它的 d，抬手时整页重绘会把它清掉。
+  // 这样就不需要 createElementNS，整个文件里不出现任何 URL 字符串。
+  return `<svg class="layer layer-ink" data-layer="ink" viewBox="0 0 ${CARD.w} ${CARD.h}" preserveAspectRatio="none">${paths}<path data-live-ink="" d="" /></svg>`;
+}
+
+function renderOwnLinksLayer(core, ui, content, isOwn) {
+  const items = content.links
+    .map(
+      (link) => `<div class="item own-link" data-own-link="${link.id}" style="left:${link.x}px;top:${link.y}px">
+        <span class="tag" data-own-link-tag>${escapeHtml(VIEW_TEXT.ownLinkTag)}</span>
+        <button type="button" class="link" data-action="open-link" data-ref="${escapeHtml(link.targetRef)}">${escapeHtml(link.label)}</button>
+        ${isOwn ? `<button type="button" class="remove" data-action="remove-own-link" data-link-id="${link.id}">×</button>` : ""}
+      </div>`
+    )
+    .join("");
+  return `<div class="layer" data-layer="ownLinks">${items}</div>`;
+}
+
+function renderOwnTextsLayer(content, isOwn) {
+  const items = content.texts
+    .map((text) => {
+      const sized = text.w ? `width:${text.w}px;height:${text.h}px;font-size:${Math.max(12, Math.round(text.h * 0.42))}px;` : "";
+      return `<div class="item own-text" data-own-text="${text.id}" style="left:${text.x}px;top:${text.y}px;${sized}">
+        <span class="own-text-body">${escapeHtml(text.text)}</span>
+        ${isOwn ? `<span class="handle" data-text-handle data-text-id="${text.id}"></span>` : ""}
+      </div>`;
+    })
+    .join("");
+  return `<div class="layer" data-layer="ownTexts">${items}</div>`;
+}
+
+function renderBlocksLayer(core, content, isOwn) {
+  const items = content.blockInstances
+    .map((instance) => {
+      const block = blockOf(core, instance.blockId);
+      const link = block.attachmentLink
+        ? `<button type="button" class="link" data-action="open-link" data-ref="${escapeHtml(block.attachmentLink.targetRef)}">${escapeHtml(block.attachmentLink.label)}</button>`
+        : "";
+      const handle = isOwn ? `<span class="handle" data-block-handle data-block-id="${block.id}"></span>` : "";
+      return `<div class="item block" data-block="${block.id}"${isOwn ? ' data-action="move-block"' : ""}
+        style="left:${instance.x}px;top:${instance.y}px;width:${instance.w}px;height:${instance.h}px">
+        <p class="block-sentence" data-block-sentence>${escapeHtml(block.rawSentence)}</p>
+        <p class="tiny muted">${escapeHtml(block.level)} · ${escapeHtml(block.thing)} · <span data-round-label>${escapeHtml(blockRoundLabel(core, block.id) === "current" ? TEXT.roundCurrent : TEXT.roundPrevious)}</span></p>
+        ${link}
+        ${handle}
+      </div>`;
+    })
+    .join("");
+  return `<div class="layer" data-layer="blockInstances">${items}</div>`;
+}
+
+const LAYER_RENDERERS = {
+  ink: (core, ui, content, isOwn) => renderInkLayer(content),
+  ownLinks: (core, ui, content, isOwn) => renderOwnLinksLayer(core, ui, content, isOwn),
+  ownTexts: (core, ui, content, isOwn) => renderOwnTextsLayer(content, isOwn),
+  blockInstances: (core, ui, content, isOwn) => renderBlocksLayer(core, content, isOwn),
+};
+
+const layerIsEmpty = (content, name) => (content[name] || []).length === 0;
+
+function viewTools(card, ui) {
+  const tool = (name, label) =>
+    `<button type="button" class="tool-btn" data-action="set-tool" data-tool="${name}"${ui.tool === name ? ' aria-pressed="true"' : ""}>${escapeHtml(label)}</button>`;
+
+  // 选中工具后必须同时出现：输入控件 + **一个明确的放置按钮** + 一句怎么用的提示。
+  // 原来只有"选工具 → 去点画布"这一条路，没有任何提示，用户根本不知道要那样做。
+  const textInput =
+    ui.tool === "text"
+      ? `<input type="text" data-bind="new-text" placeholder="${escapeHtml(VIEW_TEXT.textPlaceholder)}">
+         <button type="button" class="place-btn" data-action="place-text">${escapeHtml(VIEW_TEXT.placeButton)}</button>
+         <span class="tiny muted" data-place-hint>${escapeHtml(VIEW_TEXT.placeTextHint)}</span>`
+      : "";
+  const linkInput =
+    ui.tool === "link"
+      ? `<select data-bind="new-link">${PROJECT_OBJECTS.map((o) => `<option value="${escapeHtml(o.ref)}">${escapeHtml(o.label)}</option>`).join("")}</select>
+         <button type="button" class="place-btn" data-action="place-link">${escapeHtml(VIEW_TEXT.placeButton)}</button>
+         <span class="tiny muted" data-place-hint>${escapeHtml(VIEW_TEXT.placeLinkHint)}</span>`
+      : "";
+
+  return `<div class="tools" data-tools>
+    ${tool("ink", VIEW_TEXT.inkTool)}
+    ${tool("text", VIEW_TEXT.addTextButton)}
+    ${tool("link", VIEW_TEXT.addLinkButton)}
+    ${textInput}
+    ${linkInput}
+    <button type="button" data-action="undo-step" data-card-id="${card.id}">${escapeHtml(VIEW_TEXT.undoStepButton)}</button>
+    <button type="button" data-action="clear-ink" data-card-id="${card.id}">${escapeHtml(VIEW_TEXT.clearInkButton)}</button>
+    <button type="button" data-action="upload" data-card-id="${card.id}">${escapeHtml(VIEW_TEXT.uploadButton)}</button>
+    <button type="button" data-action="exit-edit" data-card-id="${card.id}">${escapeHtml(VIEW_TEXT.exitEditButton)}</button>
+  </div>`;
+}
+
+function viewCanvas(core, ui) {
+  const card = ui.selectedCardId ? core.cards[ui.selectedCardId] : null;
+  const heading = `<h2>${escapeHtml(VIEW_TEXT.canvasHeading)}</h2>`;
+
+  if (!card) {
+    return `<section class="panel" data-panel="canvas">${heading}<p class="muted" data-empty-canvas>${escapeHtml(VIEW_TEXT.emptyCanvas)}</p></section>`;
+  }
+
+  const isOwn = card.holderId === ui.currentHolderId;
+  const status = cardStatus(core, card.id);
+  const content = visibleContentFor(core, card.id, ui.currentHolderId);
+  const viewingEditingOther = !isOwn && status === "editing";
+
+  const notices = [];
+  if (!isOwn) notices.push(`<p class="notice" data-readonly>${escapeHtml(VIEW_TEXT.readOnly)}</p>`);
+  if (viewingEditingOther) {
+    notices.push(`<p class="notice" data-editing-notice>${escapeHtml(VIEW_TEXT.editingBadge)}</p>`);
+    notices.push(`<p class="notice" data-pre-edit-notice>${escapeHtml(VIEW_TEXT.seeingPreEdit)}</p>`);
+  }
+  if (LAYER_ORDER.every((name) => layerIsEmpty(content, name))) {
+    notices.push(`<p class="muted" data-empty-canvas>${escapeHtml(VIEW_TEXT.emptyCanvas)}</p>`);
+  }
+
+  const layers = LAYER_ORDER.map((name) => LAYER_RENDERERS[name](core, ui, content, isOwn)).join("");
+
+  return `<section class="panel" data-panel="canvas">${heading}
+    <header class="canvas-header">
+      <span class="card-title" data-card-title>${escapeHtml(card.holder)} · ${escapeHtml(card.level)} · ${escapeHtml(card.thing)}</span>
+      <span class="badge" data-canvas-status="${status}">${escapeHtml(statusText(status))}</span>
+      <span class="reject-count">${escapeHtml(VIEW_TEXT.rejectCountLabel)} <b data-reject-count="${core.handover.rejectCount}">${core.handover.rejectCount}</b></span>
+    </header>
+    ${notices.join("")}
+    <div class="card-face" data-card-face>${layers}</div>
+    ${isOwn ? viewTools(card, ui) : ""}
+  </section>`;
+}
+
+// —— 整页组合 ——
+//
+// 通知条紧跟在顶栏之后、三栏之前：它是"刚才那一步为什么不行"的唯一反馈，
+// 排到页尾就会掉到折叠线以下——点了按钮屏幕上什么都没有，正是"点了没反应"。
+function viewApp(core, ui, notice, consoleOpen) {
+  const main = `<main class="app">${viewCards(core, ui)}${viewRecord(core, ui)}${viewCanvas(core, ui)}</main>`;
+  return viewTopbar(core, ui) + viewNotice(notice) + main + viewChat(core, ui) + viewProject(core, ui) + viewConsole(core, ui, consoleOpen);
+}
+
+// 渲染的兜底：状态被外部改坏时给一句可读的提示，而不是留下一片空白。
+function viewAppSafe(core, ui, notice, consoleOpen) {
+  try {
+    return viewApp(core, ui, notice, consoleOpen);
+  } catch (err) {
+    return `<p class="notice" data-render-error>${escapeHtml(VIEW_TEXT.renderFailed)}</p>`;
+  }
+}
+
+// —— 发放表单 ——
+//
+// v2 的「发放」＝建立交接记录并为每名持卡人生成一张空画布卡，由核心层的 createCore 承担。
+// 因此这里没有对应的 action：表单只负责收集字段并调用那条唯一的构造路径。
+
+const SETUP_PEOPLE = ["策划", "美术", "音乐", "程序"];
+const SETUP_LEVELS = ["第一关", "第二关", "第三关"];
+
+function defaultSetupForm() {
+  return { level: SETUP_LEVELS[0], thing: "", initiatorName: SETUP_PEOPLE[0], participantNames: ["音乐", "程序"] };
+}
+
+function viewSetup(form) {
+  const f = form || defaultSetupForm();
+  const levels = SETUP_LEVELS.map((l) => `<option value="${escapeHtml(l)}"${f.level === l ? " selected" : ""}>${escapeHtml(l)}</option>`).join("");
+  const initiators = SETUP_PEOPLE.map((p) => `<option value="${escapeHtml(p)}"${f.initiatorName === p ? " selected" : ""}>${escapeHtml(p)}</option>`).join("");
+  const people = SETUP_PEOPLE.map(
+    (p) =>
+      `<label class="check"><input type="checkbox" data-bind="participant" value="${escapeHtml(p)}"${f.participantNames.includes(p) ? " checked" : ""}>${escapeHtml(p)}</label>`
+  ).join("");
+
+  return `<section class="panel setup" data-panel="setup">
+    <h2>${escapeHtml(VIEW_TEXT.setupHeading)}</h2>
+    <label class="field"><span>${escapeHtml(VIEW_TEXT.levelLabel)}</span><select data-bind="level">${levels}</select></label>
+    <label class="field"><span>${escapeHtml(VIEW_TEXT.thingLabel)}</span><input type="text" data-bind="thing" value="${escapeHtml(f.thing)}"></label>
+    <label class="field"><span>${escapeHtml(VIEW_TEXT.initiatorLabel)}</span><select data-bind="initiator">${initiators}</select></label>
+    <fieldset class="field"><legend>${escapeHtml(VIEW_TEXT.participantsLabel)}</legend><div class="checks">${people}</div></fieldset>
+    <button type="button" data-action="issue-handover">${escapeHtml(VIEW_TEXT.issueButton)}</button>
+  </section>`;
+}
+
+function viewNotice(text) {
+  return text ? `<p class="notice" data-notice>${escapeHtml(text)}</p>` : "";
+}
+
+// —— 临时对话（角落图标，不占画布）——
+//
+// 门槛完全读核心层的 chatUnlocked：次数不足时即使界面被点开也不渲染对话面板（v2 L80）。
+
+function viewChatPanel(core) {
+  const messages = core.handover.chat.messages
+    .map((m) => `<li class="chat-msg" data-chat-msg>${escapeHtml(core.holders[m.fromId].name)}：${escapeHtml(m.text)}</li>`)
+    .join("");
+
+  return `<section class="chat-panel" data-chat-panel>
+    <header>
+      <h2>${escapeHtml(VIEW_TEXT.chatHeading)}</h2>
+      <button type="button" data-action="close-panel">${escapeHtml(VIEW_TEXT.closeButton)}</button>
+    </header>
+    <p class="tiny muted" data-chat-scope>${escapeHtml(VIEW_TEXT.chatScopeNotice)}</p>
+    <ul class="chat-messages" data-chat-messages>${messages}</ul>
+    <span class="inline">
+      <textarea data-bind="chat-text" placeholder="${escapeHtml(VIEW_TEXT.chatPlaceholder)}"></textarea>
+      <button type="button" data-action="send-chat">${escapeHtml(VIEW_TEXT.chatSend)}</button>
+    </span>
+  </section>`;
+}
+
+function viewChat(core, ui) {
+  const emphasized = chatEmphasized(core);
+  const open = ui.panel === "chat";
+  const icon = `<button type="button" class="chat-icon${emphasized ? " is-emphasized" : ""}" data-action="toggle-chat" aria-pressed="${open}">${escapeHtml(VIEW_TEXT.signLabel)}</button>`;
+  const notice = emphasized ? `<p class="tiny muted" data-chat-notice>${escapeHtml(TEXT.rejectGateUnlocked)}</p>` : "";
+  const panel = open ? viewChatPanel(core) : "";
+
+  return `<aside class="chat-dock" data-panel="chat-dock">${icon}${notice}${panel}</aside>`;
+}
+
+// —— 项目面板（打开链接）——
+//
+// 只负责"打开项目管理中的那个对象"：高亮目标并显式标注演示不写入真实磁盘、权限不变。
+
+const PROJECT_GROUPS = ["关卡文件", "声音", "图", "修改历史"];
+
+function viewProject(core, ui) {
+  if (ui.panel !== "project") return "";
+
+  const groups = PROJECT_GROUPS.map((group) => {
+    const items = PROJECT_OBJECTS.filter((o) => o.ref.startsWith(group + "/"))
+      .map(
+        (o) =>
+          `<li class="${o.ref === ui.projectRef ? "is-highlighted" : ""}" data-project-object="${escapeHtml(o.ref)}">${escapeHtml(o.label)}</li>`
+      )
+      .join("");
+    return `<section class="project-group"><h3>${escapeHtml(group)}</h3><ul>${items}</ul></section>`;
+  }).join("");
+
+  return `<div class="overlay" data-panel="project">
+    <section class="project-panel" data-project-panel>
+      <header>
+        <h2>${escapeHtml(VIEW_TEXT.projectHeading)}</h2>
+        <button type="button" data-action="close-panel">${escapeHtml(VIEW_TEXT.closeButton)}</button>
+      </header>
+      <p class="tiny muted" data-project-notice>${escapeHtml(VIEW_TEXT.projectDiskNotice)}</p>
+      ${groups}
+    </section>
+  </div>`;
+}
+
+// —— DOM 挂载与事件接线：整个文件里只有这一段依赖浏览器 ——
+
+const runtime = { core: null, ui: null, form: null, root: null, storage: null, notice: "", consoleOpen: false, drag: null };
+
+const currentForm = () => runtime.form || (runtime.form = defaultSetupForm());
+
+function render() {
+  if (!runtime.root) return;
+  if (!runtime.core) {
+    runtime.root.innerHTML =
+      viewSetup(currentForm()) + viewNotice(runtime.notice) + viewConsole(null, null, runtime.consoleOpen);
+    return;
+  }
+  runtime.root.innerHTML = viewAppSafe(runtime.core, runtime.ui, runtime.notice, runtime.consoleOpen);
+}
+
+// 把 planClick 的返回应用上去。点击与控制台按键共用这一条路径。
+function applyPlan(plan) {
+  runtime.core = plan.core;
+  runtime.ui = plan.ui;
+  runtime.form = plan.form;
+  runtime.notice = plan.notice;
+  runtime.consoleOpen = plan.consoleOpen;
+
+  if (plan.resetStorage) {
+    try {
+      if (runtime.storage) runtime.storage.removeItem(STORAGE_KEY);
+    } catch (err) {
+      /* 存储不可用时本来就是内存态 */
+    }
+  }
+  if (!runtime.core && !runtime.storage) runtime.notice = VIEW_TEXT.storageDisabled;
+
+  if (runtime.core) persist();
+  render();
+}
+
+function persist() {
+  if (!writeStoredCore(runtime.storage, runtime.core) && runtime.storage) {
+    runtime.notice = VIEW_TEXT.storageDisabled;
+  }
+}
+
+function applyAction(action) {
+  const result = dispatch(runtime.core, action);
+  if (!result.ok) {
+    // 观众看到的必须是能读懂的一句话，不是 ALREADY_AGREED 这种码。
+    runtime.notice = errorText(result.error);
+    render();
+    return false;
+  }
+  runtime.core = result.core;
+  runtime.notice = "";
+  persist();
+  render();
+  return true;
+}
+
+const readValue = (selector) => {
+  const el = runtime.root.querySelector(selector);
+  return el ? el.value : "";
+};
+
+function currentAttachmentLink() {
+  const ref = readValue('[data-bind="composer-link"]');
+  if (!ref) return null;
+  const found = PROJECT_OBJECTS.find((o) => o.ref === ref);
+  return { label: found ? found.label : ref, targetRef: ref };
+}
+
+function blockInstanceOf(cardId, blockId) {
+  const card = runtime.core.cards[cardId];
+  if (!card) return null;
+  const content = card.draft === null ? card.visible : card.draft;
+  return content.blockInstances.find((i) => i.blockId === blockId) || null;
+}
+
+function drawingWorld(event) {
+  const hit = event && event.target && event.target.closest ? event.target.closest(".card-world") : null;
+  return hit || document.querySelector(".own-slot .flip-inner.is-front .card-world");
+}
+function localDelta(dx, dy, world) {
+  if (!world) return { x: dx, y: dy };
+  const rect = world.getBoundingClientRect();
+  const sx = rect.width ? CARD.w / rect.width : 1;
+  const sy = rect.height ? CARD.h / rect.height : 1;
+  return { x: dx * sx, y: dy * sy };
+}
+function cardFacePoint(event, world) {
+  const surface = world || drawingWorld(event);
+  if (!surface) return null;
+  const rect = surface.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  const x = ((event.clientX - rect.left) / rect.width) * CARD.w;
+  const y = ((event.clientY - rect.top) / rect.height) * CARD.h;
+  return {
+    x: Math.round(Math.max(0, Math.min(CARD.w, x))),
+    y: Math.round(Math.max(0, Math.min(CARD.h, y))),
+  };
+}
+function faceScale() {
+  const world = document.querySelector(".own-slot .flip-inner.is-front .card-world");
+  if (!world) return { x: 1, y: 1 };
+  const delta = localDelta(1, 1, world);
+  return { x: delta.x, y: delta.y };
+}
+
+// 输入原句时只换批注，不重绘整页——整页重绘会丢输入焦点（旧原型踩过这个坑）。
+function refreshSuggestion() {
+  const ui = runtime.ui;
+  const req = ui.composingReqId ? requirementOf(runtime.core, ui.composingReqId) : null;
+  const suggestion = req ? suggestionFor(runtime.core, req.id, ui.currentHolderId) : null;
+
+  const box = runtime.root.querySelector("[data-suggestion]");
+  if (box) box.outerHTML = viewSuggestion(suggestion, req ? req.draftText : "", req ? req.id : "");
+
+  const submit = runtime.root.querySelector('[data-action="submit-requirement"]');
+  if (submit) submit.disabled = !(req && !isCurrentAgreed(runtime.core, req));
+}
+
+// 事件处理器只负责：把 DOM 读成载荷 → 交给 planClick → 应用返回的下一步。
+// 这里刻意不写任何"这一步能不能做"的判断——那些判断全在 planClick 里，那才是能被测试的部分。
+function onClick(event) {
+  // 刚拖完的那一下不算点击：否则把链接从 A 拖到 B，会顺带打开项目面板
+  if (runtime.suppressClick) {
+    runtime.suppressClick = false;
+    return;
+  }
+  const el = event.target.closest("[data-action]");
+  if (!el) return;
+
+  const reqId = el.dataset.reqId;
+  applyPlan(
+    planClick(runtime.core, runtime.ui, {
+      action: el.dataset.action,
+      holderId: el.dataset.holderId,
+      cardId: el.dataset.cardId,
+      reqId,
+      textId: el.dataset.textId,
+      linkId: el.dataset.linkId,
+      ref: el.dataset.ref,
+      tool: el.dataset.tool,
+      // 放置类动作的载荷：文本工具取输入框，链接工具取下拉框
+      text: readValue('[data-bind="new-text"]'),
+      placeRef: readValue('[data-bind="new-link"]'),
+      note: readValue(`[data-bind="reject-note"][data-req-id="${reqId}"]`),
+      comment: readValue(`[data-bind="comment-text"][data-req-id="${reqId}"]`),
+      chatText: readValue('[data-bind="chat-text"]'),
+      attachmentLink: currentAttachmentLink(),
+      form: currentForm(),
+      consoleOpen: runtime.consoleOpen,
+    })
+  );
+}
+
+// ~ 调出演示控制台。用 event.code 而不是 event.key，
+// 这样在需要按 Shift 才能打出 ~ 的键盘布局上同样能触发。
+function onKeyDown(event) {
+  const typing = event.target && (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA");
+  if (!typing && (event.key === "z" || event.key === "Z") && cocreate.on && runtime.view === "main" && !runtime.consoleOpen) {
+    event.preventDefault();
+    undoCocreate();
+    return;
+  }
+  // 画布工具条里按回车 = 把文字/链接放上画布。
+  // 之前只有"选工具 → 去点画布"这一条路，回车什么都不做，用户写了字以为丢了。
+  if (event.key === "Enter" && runtime.core && runtime.ui) {
+    const bind = event.target?.dataset?.bind;
+    if (bind === "new-text" && !event.shiftKey) {
+      event.preventDefault();
+      applyPlan(
+        planClick(runtime.core, runtime.ui, {
+          action: "place-text",
+          text: readValue('[data-bind="new-text"]'),
+          form: currentForm(),
+          consoleOpen: runtime.consoleOpen,
+        })
+      );
+      return;
+    }
+    if (bind === "new-link") {
+      event.preventDefault();
+      applyPlan(
+        planClick(runtime.core, runtime.ui, {
+          action: "place-link",
+          ref: readValue('[data-bind="new-link"]'),
+          form: currentForm(),
+          consoleOpen: runtime.consoleOpen,
+        })
+      );
+      return;
+    }
+  }
+
+  if (event.code === "Backquote" || event.key === "~" || event.key === "`") {
+    event.preventDefault();
+    applyPlan(
+      planClick(runtime.core, runtime.ui, {
+        action: "toggle-console",
+        consoleOpen: runtime.consoleOpen,
+        form: currentForm(),
+      })
+    );
+    return;
+  }
+  if (event.key === "Escape" && runtime.consoleOpen) {
+    applyPlan(
+      planClick(runtime.core, runtime.ui, {
+        action: "toggle-console",
+        consoleOpen: runtime.consoleOpen,
+        form: currentForm(),
+      })
+    );
+  }
+}
+
+function onInput(event) {
+  const el = event.target.closest("[data-bind]");
+  if (!el) return;
+
+  // 没有交接时（发放表单阶段）也要能回填字段，否则「东西」永远填不进去、发放永远失败。
+  if (!runtime.core || !runtime.ui) {
+    runtime.form = applySetupInput(currentForm(), el.dataset.bind, el.value);
+    return;
+  }
+
+  if (el.dataset.bind === "composer-text") {
+    const ui = runtime.ui;
+    let reqId = ui.composingReqId;
+
+    // 要求实例推迟到第一次输入时才建：只选接收人不该在记录里留下没有内容的条目。
+    if (!reqId) {
+      if (!ui.composerReceiverId) {
+        runtime.notice = VIEW_TEXT.pickReceiverFirst;
+        render();
+        return;
+      }
+      const created = dispatch(runtime.core, {
+        type: ACTIONS.REQUIREMENT_NEW,
+        actorId: ui.currentHolderId,
+        receiverId: ui.composerReceiverId,
+      });
+      if (!created.ok) {
+        runtime.notice = errorText(created.error);
+        render();
+        return;
+      }
+      runtime.core = created.core;
+      reqId = created.core.requirements[created.core.requirements.length - 1].id;
+      ui.composingReqId = reqId;
+    }
+
+    const result = dispatch(runtime.core, {
+      type: ACTIONS.REQUIREMENT_SET_DRAFT,
+      actorId: ui.currentHolderId,
+      reqId,
+      text: el.value,
+    });
+    if (!result.ok) return;
+    runtime.core = result.core;
+    persist();
+    refreshSuggestion();
+    return;
+  }
+  if (el.dataset.bind === "thing") {
+    runtime.form = applySetupInput(currentForm(), "thing", el.value);
+  }
+}
+
+function onChange(event) {
+  const el = event.target.closest("[data-bind]");
+  if (!el) return;
+
+  // 同样：发放表单阶段的勾选与下拉必须能回填。
+  if (!runtime.core || !runtime.ui) {
+    runtime.form = applySetupChange(currentForm(), el.dataset.bind, el.value, el.checked);
+    return;
+  }
+
+  if (el.dataset.bind !== "composer-receiver") return;
+
+  // 决策抽在 planComposerReceiver 里：它刻意不返回建条动作，
+  // 所以"只点一下接收人"不会在记录里留下空白条目。
+  const plan = planComposerReceiver(runtime.core, runtime.ui, el.value);
+  runtime.ui = plan.ui;
+  for (const action of plan.actions) {
+    const result = dispatch(runtime.core, action);
+    if (result.ok) runtime.core = result.core;
+  }
+  persist();
+  render();
+}
+
+function onPointerDown(event) {
+  if (!runtime.core || !runtime.ui) return;
+  const ui = runtime.ui;
+
+  // 文字 / 链接也要能拖。
+  //
+  // 难点：链接块的主体面积就是一个 <button>（点它打开项目面板），
+  // 所以不能照旧一律 closest("button") 就返回——那样链接永远拖不动。
+  // 也不能在上面 preventDefault（会连按钮的 click 一起废掉）。
+  // 做法是**按位移阈值分流**：按下不动 → 交给按钮的 click；
+  // 动了超过 4px → 变成拖动，并抑制随后的 click（见 onClick 的 suppressClick）。
+  const textHandle = event.target.closest("[data-text-handle]");
+  if (textHandle) {
+    const chip = textHandle.closest("[data-own-text]");
+    if (chip) {
+      runtime.drag = {
+        mode: "resizeText",
+        textId: textHandle.dataset.textId,
+        startX: event.clientX,
+        startY: event.clientY,
+        w: chip.offsetWidth,
+        h: chip.offsetHeight,
+        el: chip,
+        world: chip.closest(".card-world"),
+      };
+      event.preventDefault();
+    }
+    return;
+  }
+
+  const chip = event.target.closest("[data-own-text], [data-own-link]");
+  if (chip) {
+    const isText = chip.hasAttribute("data-own-text");
+    const base = {
+      startX: event.clientX,
+      startY: event.clientY,
+      x: parseFloat(chip.style.left) || 0,
+      y: parseFloat(chip.style.top) || 0,
+      moved: false,
+      el: chip,
+      world: chip.closest(".card-world"),
+    };
+    runtime.drag = isText
+      ? Object.assign(base, { mode: "moveText", textId: chip.dataset.ownText })
+      : Object.assign(base, { mode: "moveLink", linkId: chip.dataset.ownLink });
+    if (isText) {
+      event.preventDefault();
+      chip.setPointerCapture(event.pointerId);
+    }
+    return;
+  }
+
+  // 点块里的链接或删除按钮时不要顺手开始拖拽。
+  if (event.target.closest("button")) return;
+
+  const handle = event.target.closest("[data-block-handle]");
+  if (handle) {
+    const inst = blockInstanceOf(ui.selectedCardId, handle.dataset.blockId);
+    if (inst) runtime.drag = { mode: "resize", blockId: handle.dataset.blockId, startX: event.clientX, startY: event.clientY, w: inst.w, h: inst.h, world: handle.closest(".card-world") };
+    event.preventDefault();
+    return;
+  }
+
+  const movable = event.target.closest('[data-action="move-block"]');
+  if (movable) {
+    const inst = blockInstanceOf(ui.selectedCardId, movable.dataset.block);
+    if (inst) runtime.drag = { mode: "move", blockId: movable.dataset.block, startX: event.clientX, startY: event.clientY, x: inst.x, y: inst.y, world: movable.closest(".card-world") };
+    event.preventDefault();
+    return;
+  }
+
+  if (!event.target.closest("[data-card-face]")) return;
+  const world = drawingWorld(event);
+  const point = cardFacePoint(event, world);
+  if (!point) return;
+
+  if (ui.tool === "ink") {
+    runtime.drag = { mode: "ink", points: [point], world };
+    event.preventDefault();
+    return;
+  }
+  if (ui.tool === "text") {
+    const text = readValue('[data-bind="new-text"]').trim();
+    if (!text) {
+      runtime.notice = VIEW_TEXT.needTextFirst;
+      render();
+      return;
+    }
+    applyAction({ type: ACTIONS.CANVAS_ADD_TEXT, actorId: ui.currentHolderId, cardId: ui.selectedCardId, x: point.x, y: point.y, text });
+    // 同链接：放完一次就退出放置模式，避免后续误点又多落一句
+    runtime.ui = Object.assign({}, ui, { tool: "select" });
+    render();
+    return;
+  }
+  if (ui.tool === "link") {
+    const ref = readValue('[data-bind="new-link"]');
+    if (!ref) {
+      runtime.notice = VIEW_TEXT.needLinkFirst;
+      render();
+      return;
+    }
+    const found = PROJECT_OBJECTS.find((o) => o.ref === ref);
+    applyAction({
+      type: ACTIONS.CANVAS_ADD_OWN_LINK,
+      actorId: ui.currentHolderId,
+      cardId: ui.selectedCardId,
+      x: point.x,
+      y: point.y,
+      label: found ? found.label : ref,
+      targetRef: ref,
+    });
+    // 放完一次就退出放置模式：工具一直停在"链接"上时，
+    // 之后每一笔点画布都会再落一个链接，误触极难发现。
+    runtime.ui = Object.assign({}, ui, { tool: "select" });
+    render();
+  }
+}
+
+function onPointerMove(event) {
+  const drag = runtime.drag;
+  if (!drag) return;
+
+  // 拖文字 / 拖链接：只改 DOM 位置（跟手），抬手时才落 action。
+  // 这样拖动过程中不会每一帧都重渲染整页。
+  if (drag.mode === "moveText" || drag.mode === "moveLink") {
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    // 阈值：小于 4px 视为"按了一下"，不算拖动——否则点按钮会变成微移
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      drag.el?.classList.add("is-dragging");
+    }
+    const el = drag.el;
+    if (!el) return;
+    const delta = localDelta(dx, dy, drag.world);
+    el.style.left = Math.round(drag.x + delta.x) + "px";
+    el.style.top = Math.round(drag.y + delta.y) + "px";
+    return;
+  }
+
+  if (drag.mode === "resizeText") {
+    const delta = localDelta(event.clientX - drag.startX, event.clientY - drag.startY, drag.world);
+    const w = Math.max(24, Math.round(drag.w + delta.x));
+    const h = Math.max(18, Math.round(drag.h + delta.y));
+    drag.el.style.width = w + "px";
+    drag.el.style.height = h + "px";
+    drag.el.style.fontSize = Math.max(12, Math.round(h * 0.42)) + "px";
+    drag.nextW = w;
+    drag.nextH = h;
+    return;
+  }
+
+  if (drag.mode === "ink") {
+    const point = cardFacePoint(event, drag.world);
+    if (!point) return;
+    drag.points.push(point);
+    const live = drag.world ? drag.world.querySelector("[data-live-ink]") : runtime.root.querySelector("[data-live-ink]");
+    if (!live) return;
+    live.setAttribute("d", drag.points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" "));
+    return;
+  }
+
+  // 拖拽与缩放期间只改 DOM 样式，抬手时才 dispatch 一次（规格 §10 R3）。
+  const el = runtime.root.querySelector(`[data-block="${drag.blockId}"]`);
+  if (!el) return;
+  const delta = localDelta(event.clientX - drag.startX, event.clientY - drag.startY, drag.world);
+
+  if (drag.mode === "move") {
+    el.style.left = Math.round(drag.x + delta.x) + "px";
+    el.style.top = Math.round(drag.y + delta.y) + "px";
+  } else {
+    el.style.width = Math.max(24, Math.round(drag.w + delta.x)) + "px";
+    el.style.height = Math.max(24, Math.round(drag.h + delta.y)) + "px";
+  }
+}
+
+function onPointerUp(event) {
+  const drag = runtime.drag;
+  runtime.drag = null;
+  if (!drag || !runtime.core || !runtime.ui) return;
+  const ui = runtime.ui;
+
+  if (drag.mode === "resizeText") {
+    runtime.suppressClick = true;
+    setTimeout(() => { runtime.suppressClick = false; }, 0);
+    applyAction({
+      type: ACTIONS.CANVAS_MOVE_TEXT,
+      actorId: ui.currentHolderId,
+      cardId: ui.selectedCardId,
+      textId: drag.textId,
+      x: parseFloat(drag.el.style.left) || 0,
+      y: parseFloat(drag.el.style.top) || 0,
+      w: drag.nextW,
+      h: drag.nextH,
+    });
+    return;
+  }
+
+  // 拖文字 / 拖链接：抬手时落 action。
+  if (drag.mode === "moveText" || drag.mode === "moveLink") {
+    // 没超过阈值 = 只是按了一下，交给按钮自己的 click（打开链接 / 删除），不要吞掉
+    if (!drag.moved) {
+      drag.el?.classList.remove("is-dragging");
+      return;
+    }
+    const el = drag.el;
+    const pos = el ? { x: parseFloat(el.style.left), y: parseFloat(el.style.top) } : null;
+    // 拖过之后紧接着的那次 click 要吞掉，否则"移动一下"会顺手把项目面板打开。
+    // 但必须**自动过期**：如果拖动结束时鼠标已经停在别处，浏览器不会补发 click，
+    // 这个标志就会一直挂着，把之后第一次真实点击吞掉（实测把"上传"的确认吃没了）。
+    runtime.suppressClick = true;
+    setTimeout(() => { runtime.suppressClick = false; }, 0);
+    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+      applyAction(
+        drag.mode === "moveText"
+          ? { type: ACTIONS.CANVAS_MOVE_TEXT, actorId: ui.currentHolderId, cardId: ui.selectedCardId, textId: drag.textId, x: pos.x, y: pos.y }
+          : { type: ACTIONS.CANVAS_MOVE_OWN_LINK, actorId: ui.currentHolderId, cardId: ui.selectedCardId, linkId: drag.linkId, x: pos.x, y: pos.y }
+      );
+      return;
+    }
+    render();
+    return;
+  }
+
+  // 零位移的点击不落 action：否则点一下共识块就会把卡改成"编辑中"，
+  // 而 v2 L27 说的是"只打开卡、不改画布，状态保持不变"。
+  const decision = planPointerCommit(drag, { clientX: event.clientX, clientY: event.clientY });
+  if (!decision) {
+    render();
+    return;
+  }
+
+  if (decision.kind === "ink") {
+    applyAction({ type: ACTIONS.CANVAS_ADD_INK, actorId: ui.currentHolderId, cardId: ui.selectedCardId, points: drag.points });
+    return;
+  }
+
+  const el = runtime.root.querySelector(`[data-block="${drag.blockId}"]`);
+  if (!el) {
+    render();
+    return;
+  }
+  if (decision.kind === "move") {
+    applyAction({
+      type: ACTIONS.CANVAS_MOVE_BLOCK,
+      actorId: ui.currentHolderId,
+      cardId: ui.selectedCardId,
+      blockId: drag.blockId,
+      x: parseFloat(el.style.left),
+      y: parseFloat(el.style.top),
+    });
+  } else {
+    applyAction({
+      type: ACTIONS.CANVAS_RESIZE_BLOCK,
+      actorId: ui.currentHolderId,
+      cardId: ui.selectedCardId,
+      blockId: drag.blockId,
+      w: parseFloat(el.style.width),
+      h: parseFloat(el.style.height),
+    });
+  }
+}
+
+function mount() {
+  const root = document.getElementById("app");
+  if (!root) return;
+  runtime.root = root;
+
+  try {
+    runtime.storage = window.localStorage;
+  } catch (err) {
+    runtime.storage = null; // file:// 下策略可能禁用存储，降级为内存态
+  }
+
+  const restored = readStoredCore(runtime.storage);
+  if (restored) {
+    runtime.core = restored;
+    runtime.ui = createUi(runtime.core);
+  } else {
+    runtime.core = null;
+    runtime.notice = runtime.storage ? "" : VIEW_TEXT.storageDisabled;
+  }
+
+  root.addEventListener("click", onClick);
+  root.addEventListener("input", onInput);
+  root.addEventListener("change", onChange);
+  root.addEventListener("pointerdown", onPointerDown);
+  root.addEventListener("pointermove", onPointerMove);
+  root.addEventListener("pointerup", onPointerUp);
+  root.addEventListener("pointercancel", onPointerUp);
+  // 挂在 document 上：~ 键不该依赖焦点落在哪里。
+  document.addEventListener("keydown", onKeyDown);
+
+  render();
+}
+
+const BACK_SRC = {
+  "策划": "前端视觉素材/交接卡/策划卡.png",
+  "美术": "前端视觉素材/交接卡/美术卡.png",
+  "音乐": "前端视觉素材/交接卡/音乐卡.png",
+  "程序": "前端视觉素材/交接卡/程序卡.png"
+};
+const PROJECT_KEY = "handoff-visual-project";
+const LAYOUT_KEY = "handoff-visual-layout-v2";
+const BUTTON_LAYOUT = {
+  chat: { z: 1, home: { x: 55.5, y: -19.4, w: 494, r: 11 }, away: { x: 40.5, y: 71.9, w: 600, r: -8 } },
+  handoff: { z: 2, home: { x: -6.8, y: 19.1, w: 340, r: -4 }, away: { x: 86, y: 19.8, w: 340, r: 15 } },
+  schedule: { z: 3, home: { x: 87.4, y: 9.4, w: 590, r: -2 }, away: { x: -10, y: 8, w: 600, r: 7 } },
+  project: { z: 4, home: { x: 33.4, y: 74.8, w: 621, r: 9 }, away: { x: 38.5, y: -27.2, w: 618, r: 38 } }
+};
+const PACK_LAYOUT = [
+  { x: -6, y: -7, w: 100, r: -11, z: 1 },
+  { x: 0, y: 0, w: 100, r: 0, z: 2 },
+  { x: 7, y: 8, w: 100, r: 11, z: 3 }
+];
+const SCENE_LAYOUT = {
+  "main-board": { x: 25.7, y: -3.8, w: 45.4, r: 0, z: 3 },
+  "main-slip-l": { x: 78.9, y: 84.6, w: 22, r: 0, z: 1 },
+  "main-slip-r": { x: 29.1, y: -3.3, w: 45, r: 90, z: 2 },
+  "main-pencil": { x: 89.1, y: 40.7, w: 28, r: 10, z: 3 },
+  "chat-board": { x: 29.5, y: -7.5, w: 42.9, r: -7, z: 3 },
+  "chat-slip-l": { x: 78.6, y: 16.5, w: 16.9, r: 0, z: 1 },
+  "chat-slip-r": { x: 29.8, y: -14.3, w: 47.8, r: 90, z: 2 },
+  "handoff-board": { x: 30.6, y: -5.8, w: 44.8, r: -2, z: 3 },
+  "handoff-slip-l": { x: 4, y: 14, w: 16.9, r: 0, z: 1 },
+  "handoff-slip-r": { x: 14.1, y: 10.6, w: 64.7, r: 0, z: 2 },
+  "schedule-board": { x: 30.7, y: 10.5, w: 38.5, r: 0, z: 3 },
+  "schedule-slip-l": { x: 4, y: 14, w: 16.9, r: 0, z: 1 },
+  "schedule-slip-r": { x: 78.1, y: 18, w: 16.9, r: 0, z: 2 },
+  "schedule-note-1": { x: 28, y: 14, w: 42, r: 0, z: 1 },
+  "schedule-note-2": { x: 34, y: 48, w: 42, r: 0, z: 2 },
+  "project-board": { x: 27, y: -5.4, w: 44.8, r: -7, z: 3 },
+  "project-slip-l": { x: 74.3, y: 17, w: 16.9, r: 0, z: 1 },
+  "project-slip-r": { x: 74.6, y: 37.6, w: 16.9, r: 0, z: 2, scenic: true },
+  "chat-grid": { x: 0, y: 0, w: 100, h: 100, r: 0, z: 1, scenic: false, tuned: false },
+  "handoff-grid": { x: 0, y: 0, w: 100, h: 100, r: 0, z: 1, scenic: false, tuned: false },
+  "main-grid": { x: 0, y: 0, w: 100, h: 100, r: 0, z: 1, scenic: false, tuned: false },
+  "schedule-grid": { x: 0, y: 0, w: 100, h: 100, r: 0, z: 1, scenic: false, tuned: false },
+  "project-grid": { x: 0, y: 0, w: 100, h: 100, r: 0, z: 1, scenic: false, tuned: false },
+  "own-card": { x: 51, y: 96, w: 364, h: 542, r: 0, z: 6, unit: "px", scenic: true },
+  "other-tray": { x: 1, y: 88, w: 36, h: 20, r: 0, z: 6, unit: "%", scenic: true },
+  "dock-ui": { x: 27.7, y: 15.8, w: 42, r: 0, z: 3, unit: "%", scenic: true },
+  "chat-ui": { x: 0, y: 0, w: 100, h: 100, r: 0, z: 3, unit: "%", scenic: true },
+  "project-ui": { x: 6, y: 14, w: 86, h: 74, r: 0, z: 3, unit: "%", scenic: true }
+};
+
+function loadProject() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PROJECT_KEY));
+    if (saved && saved.project && saved.ui) return saved;
+  } catch (err) {}
+  return {
+    ui: { uploadName: "", uploadShelf: "声音", projectPath: "D:\\Game\\Prototype" },
+    project: { path: "", bound: false, pending: [], files: [], levels: ["第一关", "第二关", "第三关"].map((name) => ({ name, note: "" })), log: [], taken: null }
+  };
+}
+let projectState = loadProject();
+
+function saveProject() {
+  try { localStorage.setItem(PROJECT_KEY, JSON.stringify(projectState)); } catch (err) {}
+}
+
+function currentRole() {
+  if (runtime.core && runtime.ui && runtime.core.holders[runtime.ui.currentHolderId]) {
+    return runtime.core.holders[runtime.ui.currentHolderId].name;
+  }
+  return "策划";
+}
+
+function shelfForRole(role) {
+  if (role === "音乐") return "声音";
+  if (role === "美术") return "图";
+  return "说明";
+}
+function defaultExt(role) {
+  if (role === "音乐") return ".wav";
+  if (role === "美术") return ".png";
+  return ".txt";
+}
+function extOf(name, fallback) {
+  const matched = String(name || "").match(/(\.[a-z0-9]{1,5})$/i);
+  return matched ? matched[1].toLowerCase() : fallback;
+}
+function safeName(value) {
+  return String(value || "").trim().replace(/[\\/:*?"<>|\s]/g, "") || "未命名";
+}
+function nowText() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+}
+function placeGate() {
+  if (!projectState.project.bound) return { ok: false, why: "还没有绑定项目文件夹。" };
+  if (!runtime.core) return { ok: false, why: "还没有交接卡。" };
+  return { ok: true, why: "" };
+}
+function bindProject() {
+  const role = currentRole();
+  if (role !== "策划" && role !== "程序") return;
+  const path = projectState.ui.projectPath.trim().replace(/[\\/]+$/, "");
+  if (!path) return;
+  projectState.project.path = path;
+  projectState.project.bound = true;
+  saveProject();
+  render();
+}
+function unbindProject() {
+  const role = currentRole();
+  if (role !== "策划" && role !== "程序") return;
+  projectState.project.bound = false;
+  projectState.project.path = "";
+  saveProject();
+  render();
+}
+function queueFile() {
+  const role = currentRole();
+  const original = projectState.ui.uploadName.trim();
+  if (!original || !runtime.core) {
+    projectState.project.log.push(nowText() + " 没能收下：" + (!runtime.core ? "还没有交接卡" : "没有文件名"));
+    saveProject();
+    render();
+    return;
+  }
+  const shelf = projectState.ui.uploadShelf || shelfForRole(role);
+  const ext = extOf(original, defaultExt(role));
+  const level = runtime.core.handover.level;
+  const thing = runtime.core.handover.thing;
+  let file = level + "_" + role + "_" + safeName(thing) + ext;
+  const used = new Set(projectState.project.files.concat(projectState.project.pending).map((item) => item.shelf + "/" + item.file));
+  let n = 2;
+  while (used.has(shelf + "/" + file)) {
+    file = level + "_" + role + "_" + safeName(thing) + "_" + n + ext;
+    n += 1;
+  }
+  projectState.project.pending.push({ id: String(Date.now()), fromRole: role, original, shelf, file });
+  projectState.ui.uploadName = "";
+  projectState.project.log.push(nowText() + " " + role + "交出原名「" + original + "」。助手拟名「" + file + "」，尚未写入。");
+  saveProject();
+  render();
+}
+function placeFile(id) {
+  const gate = placeGate();
+  if (!gate.ok) return;
+  const index = projectState.project.pending.findIndex((item) => item.id === id);
+  if (index < 0) return;
+  const item = projectState.project.pending.splice(index, 1)[0];
+  projectState.project.files.push(item);
+  const level = projectState.project.levels.find((entry) => entry.name === runtime.core.handover.level);
+  if (level) level.note = "已放入 " + item.file + "，原名 " + item.original;
+  projectState.project.log.push(nowText() + " 协作助手写入 " + item.shelf + "\\" + item.file + "。当时界面身份是" + currentRole() + "，写入者不是这个人。");
+  saveProject();
+  render();
+}
+function takeFile(id) {
+  const role = currentRole();
+  if (role !== "策划" && role !== "程序") return;
+  const item = projectState.project.files.find((entry) => entry.id === id);
+  if (!item || !projectState.project.bound) return;
+  projectState.project.taken = ["已取到" + role + "的电脑", "路径：" + projectState.project.path + "\\" + item.shelf + "\\" + item.file, "原文件名：" + item.original].join("\n");
+  projectState.project.log.push(nowText() + " " + role + "取出 " + item.shelf + "\\" + item.file);
+  saveProject();
+  render();
+}
+
+function cardBack(name) {
+  return BACK_SRC[name] || BACK_SRC["策划"];
+}
+
+function viewMain() {
+  return "";
+}
+function viewSchedule() {
+  return `<p class="placeholder-note">日程表<br>该功能还未开发</p>`;
+}
+
+const winPos = {};
+function winStyle(id) {
+  const pos = winPos[id];
+  if (!pos) return "";
+  const height = pos.h ? "height:" + Math.round(pos.h) + "px;" : "";
+  return ` style="position:absolute;margin:0;left:${Math.round(pos.x)}px;top:${Math.round(pos.y)}px;width:${Math.round(pos.w)}px;${height}z-index:7"`;
+}
+function deskWin(title, body, id) {
+  return `<div class="win" data-win="${escapeHtml(id || "")}"${winStyle(id)}><header class="win-bar"><b>${escapeHtml(title || "")}</b><span class="win-ctl" aria-hidden="true"><span>−</span><span>□</span><span>×</span></span></header><div class="win-body">${body}</div></div>`;
+}
+function viewPaperChat(core) {
+  if (!core) return deskWin("团队聊天", "<p>先发放一次交接，再来临时聊。</p>", "chat");
+  const rows = core.handover.chat.messages.map((m) => {
+    return `<li><b>${escapeHtml(core.holders[m.fromId].name)}</b><p>${escapeHtml(m.text)}</p></li>`;
+  }).join("");
+  const last = core.handover.chat.messages[core.handover.chat.messages.length - 1];
+  const term = JSON.stringify({
+    speaker: last && core.holders[last.fromId] ? core.holders[last.fromId].name : "",
+    text: last ? last.text : ""
+  }, null, 2);
+  const gate = core.handover.rejectCount >= 3 ? `<p class="chat-gate">${escapeHtml(TEXT.rejectGateUnlocked)}</p>` : "";
+  return `${deskWin("团队聊天", `${gate}
+    <ul class="chat-log">${rows || `<li>还没有消息。这句话只留在临时聊天里。</li>`}</ul>
+    <div class="chat-compose">
+      <textarea data-bind="chat-text" placeholder="说一句，助手只记录"></textarea>
+      <button type="button" data-action="send-chat">${escapeHtml(VIEW_TEXT.chatSend)}</button>
+    </div>`, "chat")}
+    <aside class="term-win" data-win="chat-term" data-piece="chat-term"${winStyle("chat-term")}><header><span>−</span><span>□</span><span>×</span></header><pre>${escapeHtml(term)}</pre></aside>`;
+}
+
+function faceLayers(core, ui, cardId) {
+  const card = core.cards[cardId];
+  const isOwn = card.holderId === ui.currentHolderId;
+  const content = visibleContentFor(core, card.id, ui.currentHolderId);
+  const layers = LAYER_ORDER.map((name) => LAYER_RENDERERS[name](core, ui, content, isOwn)).join("");
+  const kicker = isOwn ? "MY CARD" : escapeHtml(card.holder || "") + "的卡";
+  return `<div class="card-stage" data-card-face><p class="card-kicker${isOwn ? "" : " is-other"}">${kicker}</p><div class="card-world">${layers}</div></div>`;
+}
+function viewOwnCard(core, ui) {
+  const me = core.holders[ui.currentHolderId];
+  const front = runtime.ownFace === "front";
+  const mine = cardOfHolder(core, ui.currentHolderId);
+  const tools = front && mine ? viewTools(mine, ui) : "";
+  return `<div class="own-slot" data-piece="own-card"><div class="flip"><div class="flip-inner${front ? " is-front" : ""}">
+    <div class="flip-face flip-back"><img src="${cardBack(me.name)}" alt=""></div>
+    <div class="flip-face flip-front">${faceLayers(core, ui, me.cardId)}</div>
+  </div>
+  <button class="flip-hit" type="button" data-action="flip-own" aria-label="翻转我的交接卡"></button>
+  </div>
+  <div id="card-tools" class="card-tools"${front ? "" : " hidden"}>${tools}</div>
+  </div>`;
+}
+
+function viewOtherCards(core, ui) {
+  const others = holderList(core).filter((h) => h.id !== ui.currentHolderId);
+  const cards = others.map((h) => {
+    const open = runtime.inspectId === h.id;
+    const canvas = faceLayers(core, ui, h.cardId);
+    return `<div class="mini${open ? " is-open" : ""}" data-piece="mate-${h.name}"><div class="flip"><div class="flip-inner${open ? " is-front" : ""}">
+      <div class="flip-face flip-back"><img src="${cardBack(h.name)}" alt="${escapeHtml(h.name)}的卡背"></div>
+      <div class="flip-face flip-front">${canvas}</div>
+    </div>${open ? "" : `<button class="flip-hit" type="button" data-action="inspect-card" data-holder-id="${h.id}" data-card-id="${h.cardId}" aria-label="查看${escapeHtml(h.name)}的卡"></button>`}
+    </div></div>`;
+  }).join("");
+  return `<div class="other-tray" data-piece="other-tray">${cards}</div>`;
+}
+
+function viewHandoff() {
+  if (!runtime.core || !runtime.ui) {
+    return deskWin("发放", viewSetup(currentForm()) + viewNotice(runtime.notice), "handoff");
+  }
+  return deskWin("对接记录", viewNotice(runtime.notice) + viewRecord(runtime.core, runtime.ui), "handoff");
+}
+function viewCards() {
+  if (!runtime.core || !runtime.ui) return "";
+  return viewOwnCard(runtime.core, runtime.ui) + viewOtherCards(runtime.core, runtime.ui);
+}
+function parkInspect() {
+  document.querySelectorAll("body > .mini").forEach((node) => node.remove());
+  const open = document.querySelector(".mini.is-open");
+  const dim = document.getElementById("inspect-dim");
+  if (open) document.body.appendChild(open);
+  if (dim && !dim.hidden) document.body.appendChild(dim);
+}
+function openInspect(mini) {
+  const token = {};
+  mini._inspectToken = token;
+  const dim = document.getElementById("inspect-dim");
+  const first = mini.getBoundingClientRect();
+  document.body.appendChild(dim);
+  dim.hidden = false;
+  document.body.appendChild(mini);
+  mini.classList.add("is-open");
+  scaleWorlds(mini);
+  const last = mini.getBoundingClientRect();
+  const dx = first.left + first.width / 2 - (last.left + last.width / 2);
+  const dy = first.top + first.height / 2 - (last.top + last.height / 2);
+  const scale = last.width ? first.width / last.width : 1;
+  const motion = mini.animate([
+    { transform: "translate(calc(-50% + " + dx + "px), calc(-50% + " + dy + "px)) scale(" + scale + ") rotate(0deg)" },
+    { transform: "translate(-50%, -50%) scale(1) rotate(-8deg)", offset: 0.7 },
+    { transform: "translate(-50%, -50%) scale(1) rotate(0deg)" }
+  ], { duration: 780, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+  motion.finished.then(() => {
+    if (mini._inspectToken !== token) return;
+    const inner = mini.querySelector(".flip-inner");
+    if (inner) inner.classList.add("is-front");
+    scaleWorlds(mini);
+  }).catch(() => {});
+}
+function closeInspect() {
+  runtime.inspectId = null;
+  const dim = document.getElementById("inspect-dim");
+  if (dim) dim.hidden = true;
+  document.querySelectorAll(".mini.is-open, .mini").forEach((node) => { node._inspectToken = null; });
+  const home = document.querySelector(".other-tray");
+  document.querySelectorAll(".mini.is-open").forEach((node) => {
+    const inner = node.querySelector(".flip-inner");
+    const first = node.getBoundingClientRect();
+    node.classList.remove("is-open");
+    if (inner) inner.classList.remove("is-front");
+    if (home) home.appendChild(node);
+    scaleWorlds(node);
+    const last = node.getBoundingClientRect();
+    const dx = first.left + first.width / 2 - (last.left + last.width / 2);
+    const dy = first.top + first.height / 2 - (last.top + last.height / 2);
+    const scale = last.width ? first.width / last.width : 1;
+    node.animate([
+      { transform: "translate(" + dx + "px, " + dy + "px) scale(" + scale + ")" },
+      { transform: "none" }
+    ], { duration: 720, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+  });
+  if (runtime.core && runtime.ui) {
+    const mine = cardOfHolder(runtime.core, runtime.ui.currentHolderId);
+    if (mine) runtime.ui.selectedCardId = mine.id;
+  }
+}
+
+function viewProjectPage() {
+  const role = currentRole();
+  const canManage = role === "策划" || role === "程序";
+  const project = projectState.project;
+  const ref = runtime.ui && runtime.ui.projectRef;
+  const objects = PROJECT_OBJECTS.map((o) => `<li class="${o.ref === ref ? "is-on" : ""}">${escapeHtml(o.label)}</li>`).join("");
+  const bindBox = project.bound
+    ? `<p>已绑定：<b>${escapeHtml(project.path)}</b></p><p>这个文件夹只由协作助手写入。</p>${canManage ? `<button type="button" data-action="unbind">解除绑定</button>` : `<p>解除绑定需要切换到策划或程序。</p>`}`
+    : `<label class="field"><span>项目文件夹路径</span><input type="text" data-bind="projectPath" value="${escapeHtml(projectState.ui.projectPath)}"></label>
+       <button type="button" data-action="bind" ${canManage ? "" : "disabled"}>绑定这个文件夹</button>`;
+  const shelves = ["图", "声音", "说明"].map((name) => `<option value="${name}"${projectState.ui.uploadShelf === name ? " selected" : ""}>${name}</option>`).join("");
+  const pending = project.pending.length
+    ? project.pending.map((item) => {
+      const gate = placeGate();
+      return `<div class="person"><p>原文件名：${escapeHtml(item.original)}</p><p>助手将写成：${escapeHtml(item.shelf)}\\${escapeHtml(item.file)}</p>
+        <button type="button" data-action="place" data-id="${escapeHtml(item.id)}" ${gate.ok ? "" : "disabled"}>协作助手放入</button>
+        ${gate.ok ? "" : `<p>${escapeHtml(gate.why)}</p>`}</div>`;
+    }).join("")
+    : `<p>还没有待放入的素材。</p>`;
+  const files = project.files.length
+    ? project.files.map((item) => `<div class="person"><p>${escapeHtml(item.shelf)}\\${escapeHtml(item.file)}</p><p>原文件名：${escapeHtml(item.original)}</p>
+        <button type="button" data-action="take" data-id="${escapeHtml(item.id)}" ${canManage && project.bound ? "" : "disabled"}>取出</button></div>`).join("")
+    : `<p>文件夹里还没有由助手放入的素材。</p>`;
+  const tree = project.bound ? escapeHtml(project.path + "\n" + ["图", "声音", "说明"].map((name) => {
+    const rows = project.files.filter((item) => item.shelf === name).map((item) => "    " + item.file).join("\n") || "    （空）";
+    return name + "\\\n" + rows;
+  }).join("\n")) : "绑定之后，这里显示素材架和关卡文件。";
+  const taken = project.taken ? `<pre class="log">${escapeHtml(project.taken)}</pre>` : "";
+  return deskWin("", `<div class="project-sheet">
+    <h2>打开的对象</h2><ul class="object-list">${objects}</ul>
+    <div class="project-top">
+      <section class="box"><h2>绑定项目文件夹</h2>${bindBox}<p>版本记录仍由程序用原来的工具保存。这里不提交、不回退，也不代替那套记录。</p></section>
+      <section class="box"><h2>把素材交给助手</h2>
+        <p>人只交出自己的文件名。规范名称由助手生成，人不能在文件夹里改名。</p>
+        <div class="file-row">
+          <label class="field"><span>自己的文件名</span><input data-bind="uploadName" value="${escapeHtml(projectState.ui.uploadName)}" placeholder="例如：最终版好听的.wav"></label>
+          <label class="field"><span>打算放进哪一架</span><select data-bind="uploadShelf">${shelves}</select></label>
+          <button type="button" data-action="queue">交给协作助手，先不写入</button>
+        </div>
+        ${pending}</section>
+    </div>
+    <div class="project-bottom">
+      <section class="box"><h2>文件夹里现在有什么</h2><pre class="tree">${tree}</pre></section>
+      <section class="box"><h2>可以取出的素材</h2>${files}</section>
+      <section class="box"><h2>助手写入记录</h2><pre class="log-screen">${project.log.length ? escapeHtml(project.log.join("\n")) : "还没有写入。"}</pre>${taken}</section>
+    </div>
+  </div>`, "project");
+}
+
+function identityPanel() {
+  if (!runtime.consoleOpen) return "";
+  const core = runtime.core;
+  const ui = runtime.ui;
+  const people = core
+    ? holderList(core).map((h) => {
+      const pressed = ui && h.id === ui.currentHolderId ? ' aria-pressed="true"' : "";
+      const tag = h.id === core.handover.initiatorId ? "（发起者）" : "";
+      return `<button type="button" data-action="switch-holder" data-holder-id="${h.id}"${pressed}>${escapeHtml(h.name)}${tag}</button>`;
+    }).join("")
+    : "<p>发放之后才能切换身份。</p>";
+  const demo = `${CONFIG.showDemoScriptButton ? `<button type="button" data-action="load-demo-script">载入演示剧本</button>` : ""}
+    <button type="button" data-action="reset-demo">清空演示</button>`;
+  const count = core ? `<p>打回次数 ${core.handover.rejectCount}</p>` : "";
+  return `<section class="console-section"><h3>身份</h3><div class="row">${people}</div></section>
+    <section class="console-section"><h3>演示</h3><div class="row">${demo}</div>${count}</section>`;
+}
+
+let moving = false;
+let unlockTimer = 0;
+function finishMove() { moving = false; }
+
+function render(animateButtons) {
+  if (!runtime.root) return;
+  const stage = document.getElementById("stage");
+  const controls = document.getElementById("controls");
+  const prevView = runtime.view || "main";
+  if (runtime.ui && runtime.ui.panel === "project" && runtime.view !== "project") runtime.view = "project";
+  const view = runtime.view || "main";
+  runtime.view = view;
+  if (stage) stage.dataset.view = view;
+  if (controls) controls.dataset.view = view;
+  document.body.classList.toggle("is-debug", !!runtime.consoleOpen);
+  document.getElementById("slot-chat").innerHTML = viewPaperChat(runtime.core);
+  document.getElementById("slot-handoff").innerHTML = viewHandoff();
+  document.getElementById("slot-cards").innerHTML = viewCards();
+  parkInspect();
+  document.getElementById("slot-project").innerHTML = viewProjectPage();
+  const pop = document.getElementById("chat-pop");
+  const showPop = view === "handoff" && runtime.core && runtime.core.handover.rejectCount >= 3;
+  pop.hidden = !showPop;
+  pop.classList.toggle("is-shown", !!showPop);
+  document.getElementById("console").hidden = !runtime.consoleOpen;
+  document.getElementById("console-core").innerHTML = identityPanel();
+  stampUi();
+  applyButtons(animateButtons === true || prevView !== view);
+  applyPack();
+  applyScene();
+  fillTuner();
+  placeFrame();
+  const hoverInput = document.getElementById("tuner-hover");
+  if (hoverInput && document.activeElement !== hoverInput) hoverInput.value = layoutStore.hoverReach;
+}
+
+let layoutStore = { buttons: BUTTON_LAYOUT, pack: PACK_LAYOUT, pieces: SCENE_LAYOUT, hoverReach: 24 };
+try {
+  const savedLayout = JSON.parse(localStorage.getItem(LAYOUT_KEY) || "null");
+  if (savedLayout && savedLayout.buttons && savedLayout.buttons.chat && savedLayout.buttons.chat.home) {
+    layoutStore.buttons = savedLayout.buttons;
+    if (Array.isArray(savedLayout.pack)) layoutStore.pack = savedLayout.pack;
+    if (Number.isFinite(savedLayout.hoverReach)) layoutStore.hoverReach = savedLayout.hoverReach;
+  }
+} catch (err) {}
+
+function poseName(name) {
+  return runtime.view === name ? "away" : "home";
+}
+
+function applyButtons(animate) {
+  const controls = document.getElementById("controls");
+  if (!controls) return;
+  if (animate) {
+    controls.classList.remove("is-tuning");
+    void controls.offsetWidth;
+  } else {
+    controls.classList.add("is-tuning");
+  }
+  Object.keys(layoutStore.buttons).forEach((name) => {
+    const button = controls.querySelector(".seam-" + name);
+    const pose = layoutStore.buttons[name][poseName(name)];
+    if (!button || !pose) return;
+    button.style.left = pose.x + "vw";
+    button.style.top = pose.y + "vh";
+    button.style.width = pose.w + "px";
+    button.style.transform = "rotate(" + pose.r + "deg)";
+    button.style.zIndex = String(layoutStore.buttons[name].z);
+  });
+}
+
+function applyPack() {
+  document.querySelectorAll(".seam-handoff .pack").forEach((pack) => {
+    layoutStore.pack.forEach((layer, index) => {
+      const img = pack.querySelector('[data-layer="' + index + '"]');
+      if (!img) return;
+      img.style.width = layer.w + "%";
+      img.style.zIndex = String(layer.z);
+      img.style.transform = "translate(" + layer.x + "%, " + layer.y + "%) rotate(" + layer.r + "deg)";
+    });
+  });
+}
+
+function applyScene() {
+  Object.keys(layoutStore.pieces).forEach((id) => {
+    const el = document.querySelector('[data-piece="' + id + '"]');
+    const spot = layoutStore.pieces[id];
+    if (!el || !spot || el.classList.contains("is-open")) return;
+    if (spot.scenic === false && !spot.tuned) return;
+    if (id.endsWith("-grid") && el.parentElement && !el.parentElement.style.minHeight) {
+      el.parentElement.style.minHeight = el.parentElement.getBoundingClientRect().height + "px";
+    }
+    const unit = spot.unit === "px" ? "px" : "%";
+    el.style.position = "absolute";
+    el.style.left = spot.x + unit;
+    el.style.top = spot.y + unit;
+    el.style.width = spot.w + unit;
+    if (spot.h) el.style.height = spot.h + unit;
+    el.style.zIndex = String(spot.z || 1);
+    el.style.transform = spot.r ? "rotate(" + spot.r + "deg)" : "none";
+  });
+  document.querySelectorAll(".card-world").forEach(scaleOneWorld);
+}
+function scaleWorlds(scope) {
+  const root = scope && scope.querySelectorAll ? scope : document;
+  if (root.classList && root.classList.contains("card-world")) scaleOneWorld(root);
+  root.querySelectorAll(".card-world").forEach(scaleOneWorld);
+}
+function scaleOneWorld(world) {
+  const face = world.parentElement;
+  if (!face || !face.clientWidth) return;
+  world.style.transform = "scale(" + (face.clientWidth / 360) + ")";
+  world.style.transformOrigin = "0 0";
+}
+function stampUi() {
+  document.querySelectorAll("#stage button, #stage input, #stage textarea, #stage select, #stage h2, #stage h3, #stage img.grid, #stage .board, #stage .slip, #stage .note, #stage .pencil, #stage .ui-panel, #stage .own-slot, #stage .mini, #stage .field, #stage .box").forEach((el) => {
+    if (el.closest("#console, .seam, .flip-hit, #cocreate-layer, #cocreate-toggle")) return;
+    if (el.classList.contains("flip-hit")) return;
+    if (!el.dataset.piece) {
+      const panel = el.closest("[data-panel]");
+      const bits = [panel ? panel.dataset.panel : "page", el.tagName.toLowerCase()];
+      if (el.dataset.action) bits.push(el.dataset.action);
+      if (el.dataset.bind) bits.push(el.dataset.bind);
+      if (el.dataset.tool) bits.push(el.dataset.tool);
+      if (el.dataset.reqId) bits.push(el.dataset.reqId);
+      if (!el.dataset.action && !el.dataset.bind) {
+        const text = (el.getAttribute("aria-label") || el.textContent || "").trim().replace(/\s+/g, "").slice(0, 8);
+        if (text) bits.push(text);
+      }
+      el.dataset.piece = bits.join("-");
+    }
+    if (!layoutStore.pieces[el.dataset.piece]) {
+      layoutStore.pieces[el.dataset.piece] = el.classList.contains("mini")
+        ? { x: 0, y: 0, w: 138, h: 176, r: 0, z: 4, unit: "px", scenic: false, tuned: false }
+        : { x: 0, y: 0, w: 20, h: 8, r: 0, z: 2, unit: "%", scenic: false, tuned: false };
+    }
+  });
+}
+function markTuned(spot) {
+  if (!spot) return;
+  spot.tuned = true;
+  spot.scenic = true;
+}
+function measureUntuned(el, spot) {
+  if (!spot || spot.tuned || spot.scenic !== false) return;
+  const parent = el.offsetParent || el.parentElement;
+  if (!parent) return;
+  const parentRect = parent.getBoundingClientRect();
+  const rect = el.getBoundingClientRect();
+  if (!parentRect.width || !parentRect.height) return;
+  spot.x = Math.round((rect.left - parentRect.left) / parentRect.width * 1000) / 10;
+  spot.y = Math.round((rect.top - parentRect.top) / parentRect.height * 1000) / 10;
+  spot.w = Math.round(rect.width / parentRect.width * 1000) / 10;
+  spot.h = Math.round(rect.height / parentRect.height * 1000) / 10;
+  spot.unit = "%";
+}
+
+function tunerOptions() {
+  const seams = Object.keys(layoutStore.buttons).map((id) => ["seam:" + id, "按钮 · " + id]);
+  const packs = layoutStore.pack.map((_, index) => ["pack:" + index, "卡包 · 第" + (index + 1) + "张"]);
+  const pieces = Object.keys(layoutStore.pieces).map((id) => ["piece:" + id, "纸块 · " + id]);
+  return seams.concat(packs, pieces);
+}
+function currentTune() {
+  const sel = document.getElementById("tuner-target");
+  if (!sel || !sel.value) return null;
+  const [kind, id] = sel.value.split(":");
+  if (kind === "seam") return layoutStore.buttons[id][poseName(id)];
+  if (kind === "pack") return layoutStore.pack[Number(id)];
+  return layoutStore.pieces[id];
+}
+function fillTuner() {
+  const sel = document.getElementById("tuner-target");
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = `<option value="">未选择</option>` + tunerOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
+  if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+  const spot = currentTune();
+  if (!spot) return;
+  document.getElementById("tuner-x").value = spot.x;
+  document.getElementById("tuner-y").value = spot.y;
+  document.getElementById("tuner-w").value = spot.w;
+  document.getElementById("tuner-r").value = spot.r;
+}
+function saveLayout() {
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layoutStore)); } catch (err) {}
+  applyButtons(false);
+  applyPack();
+  applyScene();
+  placeFrame();
+}
+function shiftTune(dir) {
+  const sel = document.getElementById("tuner-target").value;
+  const [kind, id] = sel.split(":");
+  const holder = kind === "seam" ? layoutStore.buttons[id] : kind === "pack" ? layoutStore.pack[Number(id)] : layoutStore.pieces[id];
+  const pool = kind === "seam" ? Object.values(layoutStore.buttons) : kind === "pack" ? layoutStore.pack : Object.values(layoutStore.pieces);
+  if (!holder) return;
+  if (kind === "piece") markTuned(holder);
+  const ahead = pool.filter((other) => other !== holder && (dir > 0 ? other.z > holder.z : other.z < holder.z))
+    .sort((a, b) => dir > 0 ? a.z - b.z : b.z - a.z);
+  if (ahead[0]) {
+    const next = ahead[0].z;
+    ahead[0].z = holder.z;
+    holder.z = next;
+  } else holder.z += dir;
+  saveLayout();
+}
+function selectedTuneElement() {
+  const sel = document.getElementById("tuner-target");
+  if (!sel || !sel.value || !runtime.consoleOpen) return null;
+  const [kind, id] = sel.value.split(":");
+  return kind === "seam" ? document.querySelector(".seam-" + id) : document.querySelector('[data-piece="' + id + '"]');
+}
+function placeFrame() {
+  const box = document.getElementById("xform");
+  const el = selectedTuneElement();
+  if (!el) { box.hidden = true; return; }
+  const rect = el.getBoundingClientRect();
+  const frame = document.getElementById("xform-box");
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  let angle = 0;
+  const transform = getComputedStyle(el).transform;
+  if (transform && transform !== "none") {
+    const matrix = new DOMMatrix(transform);
+    angle = Math.atan2(matrix.b, matrix.a) * 180 / Math.PI;
+  }
+  frame.style.left = cx + "px";
+  frame.style.top = cy + "px";
+  frame.style.width = el.offsetWidth + "px";
+  frame.style.height = el.offsetHeight + "px";
+  frame.style.transform = "translate(-50%, -50%) rotate(" + angle + "deg)";
+  box.hidden = false;
+}
+
+document.getElementById("app").addEventListener("click", (event) => {
+  if (document.body.classList.contains("is-debug") && !event.target.closest("#console")) {
+    event.stopPropagation();
+    return;
+  }
+  const el = event.target.closest("[data-action]");
+  if (!el) return;
+  const action = el.dataset.action;
+  if (action === "flip-own") {
+    event.stopPropagation();
+    runtime.ownFace = runtime.ownFace === "front" ? "back" : "front";
+    const inner = document.querySelector(".own-slot .flip-inner");
+    if (inner) inner.classList.toggle("is-front", runtime.ownFace === "front");
+    const host = document.getElementById("card-tools");
+    if (host && runtime.core && runtime.ui) {
+      const mine = cardOfHolder(runtime.core, runtime.ui.currentHolderId);
+      host.hidden = runtime.ownFace !== "front";
+      host.innerHTML = runtime.ownFace === "front" && mine ? viewTools(mine, runtime.ui) : "";
+      if (runtime.ownFace === "front" && mine) runtime.ui.selectedCardId = mine.id;
+    }
+    return;
+  } else if (action === "inspect-card") {
+    event.stopPropagation();
+    const mini = el.closest(".mini");
+    if (document.querySelector(".mini.is-open")) closeInspect();
+    runtime.inspectId = el.dataset.holderId;
+    if (runtime.ui) runtime.ui.selectedCardId = el.dataset.cardId;
+    if (mini) openInspect(mini);
+    return;
+  } else if (action === "close-inspect") {
+    event.stopPropagation();
+    closeInspect();
+    return;
+  } else if (action === "go-chat") {
+    event.stopPropagation();
+    runtime.view = "chat";
+    render(true);
+  } else if (action === "bind") {
+    event.stopPropagation();
+    bindProject();
+  } else if (action === "unbind") {
+    event.stopPropagation();
+    unbindProject();
+  } else if (action === "queue") {
+    event.stopPropagation();
+    queueFile();
+  } else if (action === "place") {
+    event.stopPropagation();
+    placeFile(el.dataset.id);
+  } else if (action === "take") {
+    event.stopPropagation();
+    takeFile(el.dataset.id);
+  }
+}, true);
+
+document.getElementById("app").addEventListener("input", (event) => {
+  const bind = event.target.dataset.bind;
+  if (bind === "projectPath") projectState.ui.projectPath = event.target.value;
+  if (bind === "uploadName") projectState.ui.uploadName = event.target.value;
+}, true);
+document.getElementById("app").addEventListener("change", (event) => {
+  if (event.target.dataset.bind === "uploadShelf") {
+    projectState.ui.uploadShelf = event.target.value;
+    saveProject();
+  }
+}, true);
+
+document.getElementById("controls").addEventListener("click", (event) => {
+  if (document.body.classList.contains("is-debug") || moving || cocreate.on) return;
+  const button = event.target.closest("[data-go]");
+  if (!button) return;
+  const target = button.dataset.go;
+  if (runtime.view !== "main" && runtime.view !== target) return;
+  if (runtime.inspectId) closeInspect();
+  const next = runtime.view === target ? "main" : target;
+  if (next === runtime.view) return;
+  moving = true;
+  clearTimeout(unlockTimer);
+  unlockTimer = setTimeout(finishMove, 1000);
+  runtime.view = next;
+  if (runtime.ui) runtime.ui.panel = next === "project" ? "project" : null;
+  render(true);
+});
+
+["tuner-x", "tuner-y", "tuner-w", "tuner-r"].forEach((id) => {
+  document.getElementById(id).addEventListener("input", (event) => {
+    const spot = currentTune();
+    if (!spot) return;
+    if (!spot.tuned) {
+      const live = selectedTuneElement();
+      if (live) measureUntuned(live, spot);
+    }
+    const key = id.slice(6);
+    const prevW = spot.w || 1;
+    markTuned(spot);
+    spot[key] = Number(event.target.value);
+    if (key === "w" && spot.h) spot.h = Math.max(40, Math.round(spot.h * spot.w / prevW));
+    saveLayout();
+  });
+});
+document.getElementById("tuner-hover").addEventListener("input", (event) => {
+  const next = Number(event.target.value);
+  layoutStore.hoverReach = Number.isFinite(next) ? Math.max(0, Math.min(120, next)) : 0;
+  saveLayout();
+});
+
+const HOVER_ENTER = {
+  chat: "切换到临时聊天",
+  handoff: "切换到交接卡区",
+  schedule: "切换到日程",
+  project: "切换到项目管理"
+};
+function placeSeamHover(button, clientX, clientY) {
+  const shift = button.querySelector(".seam-shift");
+  const tip = document.getElementById("seam-tip");
+  if (!shift || !tip) return;
+  const name = button.dataset.go;
+  const rect = button.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const dx = window.innerWidth / 2 - cx;
+  const dy = window.innerHeight / 2 - cy;
+  const length = Math.hypot(dx, dy) || 1;
+  const reach = layoutStore.hoverReach || 0;
+  shift.style.setProperty("--hx", (dx / length * reach) + "px");
+  shift.style.setProperty("--hy", (dy / length * reach) + "px");
+  tip.textContent = runtime.view === name ? "回到主界面" : HOVER_ENTER[name];
+  tip.style.left = Math.max(8, Math.min(window.innerWidth - 8, clientX)) + "px";
+  tip.style.top = Math.max(8, Math.min(window.innerHeight - 8, clientY)) + "px";
+  tip.classList.add("is-shown");
+}
+document.getElementById("controls").addEventListener("pointerover", (event) => {
+  const button = event.target.closest(".seam");
+  if (!button || button.contains(event.relatedTarget)) return;
+  placeSeamHover(button, event.clientX, event.clientY);
+});
+document.getElementById("controls").addEventListener("pointermove", (event) => {
+  const button = event.target.closest(".seam");
+  if (!button) return;
+  placeSeamHover(button, event.clientX, event.clientY);
+});
+document.getElementById("controls").addEventListener("pointerout", (event) => {
+  const button = event.target.closest(".seam");
+  if (!button || button.contains(event.relatedTarget)) return;
+  const tip = document.getElementById("seam-tip");
+  if (tip) tip.classList.remove("is-shown");
+});
+
+document.getElementById("tuner-target").addEventListener("change", fillTuner);
+document.getElementById("tuner-front").addEventListener("click", () => shiftTune(1));
+document.getElementById("tuner-back").addEventListener("click", () => shiftTune(-1));
+document.getElementById("cocreate-clear").addEventListener("click", () => {
+  clearCocreate();
+  const status = document.getElementById("tuner-status");
+  if (status) status.textContent = "已清除主界面的共创内容。";
+});
+document.getElementById("tuner-save").addEventListener("click", async () => {
+  const text = JSON.stringify({
+    note: "视觉功能布局。交给助手合并，不改切换和交接功能。",
+    buttons: layoutStore.buttons,
+    pack: layoutStore.pack,
+    pieces: layoutStore.pieces,
+    hoverReach: layoutStore.hoverReach
+  }, null, 2);
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+  link.download = "视觉布局.json";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+  const status = document.getElementById("tuner-status");
+  try {
+    await navigator.clipboard.writeText(text);
+    status.textContent = "已下载 视觉布局.json，并复制到剪贴板。";
+  } catch (err) {
+    status.textContent = "已下载 视觉布局.json。";
+  }
+});
+
+const consoleDrag = document.getElementById("console-drag");
+let panelDrag = null;
+consoleDrag.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) return;
+  const rect = document.getElementById("console").getBoundingClientRect();
+  panelDrag = { id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+  consoleDrag.setPointerCapture(event.pointerId);
+});
+consoleDrag.addEventListener("pointermove", (event) => {
+  if (!panelDrag || event.pointerId !== panelDrag.id) return;
+  const consoleEl = document.getElementById("console");
+  consoleEl.style.left = Math.max(0, event.clientX - panelDrag.dx) + "px";
+  consoleEl.style.top = Math.max(0, event.clientY - panelDrag.dy) + "px";
+});
+consoleDrag.addEventListener("pointerup", () => { panelDrag = null; });
+
+let frameDrag = null;
+function grabsFrame(event, frame) {
+  if (event.target.closest("button, input, textarea, select, a, label, summary")) return false;
+  if (event.target.closest(".win-bar, .term-win header")) return true;
+  const rect = frame.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  return x < 14 || y < 14 || rect.width - x < 14 || rect.height - y < 14;
+}
+document.addEventListener("pointerdown", (event) => {
+  if (runtime.consoleOpen || event.button !== 0) return;
+  const frame = event.target.closest(".win, .term-win");
+  if (!frame || !frame.dataset.win || !grabsFrame(event, frame)) return;
+  const parent = frame.offsetParent || frame.parentElement;
+  const parentRect = parent.getBoundingClientRect();
+  const rect = frame.getBoundingClientRect();
+  winPos[frame.dataset.win] = {
+    x: rect.left - parentRect.left,
+    y: rect.top - parentRect.top,
+    w: rect.width,
+    h: rect.height
+  };
+  frame.style.position = "absolute";
+  frame.style.margin = "0";
+  frame.style.left = winPos[frame.dataset.win].x + "px";
+  frame.style.top = winPos[frame.dataset.win].y + "px";
+  frame.style.width = rect.width + "px";
+  frame.style.height = rect.height + "px";
+  frame.style.zIndex = "7";
+  frameDrag = { id: frame.dataset.win, pointer: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top, parent };
+  frame.setPointerCapture(event.pointerId);
+  event.preventDefault();
+}, true);
+document.addEventListener("pointermove", (event) => {
+  if (!frameDrag || event.pointerId !== frameDrag.pointer) return;
+  const pos = winPos[frameDrag.id];
+  const parentRect = frameDrag.parent.getBoundingClientRect();
+  pos.x = event.clientX - frameDrag.dx - parentRect.left;
+  pos.y = event.clientY - frameDrag.dy - parentRect.top;
+  const frame = document.querySelector('[data-win="' + frameDrag.id + '"]');
+  if (!frame) return;
+  frame.style.left = pos.x + "px";
+  frame.style.top = pos.y + "px";
+});
+document.addEventListener("pointerup", (event) => {
+  if (frameDrag && event.pointerId === frameDrag.pointer) frameDrag = null;
+});
+
+let tuneDrag = null;
+document.addEventListener("pointerdown", (event) => {
+  if (!runtime.consoleOpen || event.button !== 0) return;
+  if (event.target.closest("#console")) return;
+  const handle = event.target.closest("#xform [data-handle]");
+  const piece = event.target.closest("[data-piece], .seam");
+  const el = handle ? selectedTuneElement() : piece;
+  if (!el) {
+    const sel = document.getElementById("tuner-target");
+    sel.value = "";
+    fillTuner();
+    placeFrame();
+    return;
+  }
+  const id = el.dataset.piece ? "piece:" + el.dataset.piece : "seam:" + (el.dataset.go || "");
+  const sel = document.getElementById("tuner-target");
+  if ([...sel.options].some((o) => o.value === id)) sel.value = id;
+  fillTuner();
+  const spot = currentTune();
+  if (!spot) return;
+  measureUntuned(el, spot);
+  fillTuner();
+  tuneDrag = { id: event.pointerId, mode: handle ? handle.dataset.handle : "move", x: spot.x, y: spot.y, w: spot.w, h: spot.h || 0, r: spot.r, cx: event.clientX, cy: event.clientY };
+  event.preventDefault();
+}, true);
+document.addEventListener("pointermove", (event) => {
+  if (!tuneDrag || event.pointerId !== tuneDrag.id) return;
+  const spot = currentTune();
+  if (!spot) return;
+  markTuned(spot);
+  const dx = event.clientX - tuneDrag.cx;
+  const dy = event.clientY - tuneDrag.cy;
+  const target = document.getElementById("tuner-target").value;
+  const seam = target.startsWith("seam:");
+  const node = selectedTuneElement();
+  const parent = node && node.offsetParent;
+  const parentW = parent && parent.clientWidth ? parent.clientWidth : window.innerWidth;
+  const parentH = parent && parent.clientHeight ? parent.clientHeight : window.innerHeight;
+  const px = !seam && spot.unit === "px";
+  const toX = (pixel) => seam ? pixel / window.innerWidth * 100 : px ? pixel : pixel / parentW * 100;
+  const toY = (pixel) => seam ? pixel / window.innerHeight * 100 : px ? pixel : pixel / parentH * 100;
+  if (tuneDrag.mode === "move") {
+    spot.x = Math.round((tuneDrag.x + toX(dx)) * (px ? 1 : 10)) / (px ? 1 : 10);
+    spot.y = Math.round((tuneDrag.y + toY(dy)) * (px ? 1 : 10)) / (px ? 1 : 10);
+    if (px) {
+      spot.x = Math.round(tuneDrag.x + dx);
+      spot.y = Math.round(tuneDrag.y + dy);
+    }
+  } else if (tuneDrag.mode === "rotate") {
+    const rect = node.getBoundingClientRect();
+    const deg = Math.atan2(event.clientY - (rect.top + rect.height / 2), event.clientX - (rect.left + rect.width / 2)) * 180 / Math.PI + 90;
+    spot.r = Math.round(event.shiftKey ? Math.round(deg / 15) * 15 : deg);
+  } else {
+    const mode = tuneDrag.mode;
+    const west = mode === "nw" || mode === "sw" || mode === "w";
+    const north = mode === "nw" || mode === "ne" || mode === "n";
+    const east = mode === "ne" || mode === "se" || mode === "e";
+    const south = mode === "sw" || mode === "se" || mode === "s";
+    const growW = east || west;
+    const growH = north || south;
+    const widthUnit = seam || px ? (west ? -dx : dx) : (west ? -dx : dx) / parentW * 100;
+    const heightUnit = px ? (north ? -dy : dy) : (north ? -dy : dy) / parentH * 100;
+    if (growW) {
+      const nextW = Math.max(seam || px ? 40 : 4, tuneDrag.w + widthUnit);
+      spot.w = seam || px ? Math.round(nextW) : Math.round(nextW * 10) / 10;
+      if (event.altKey) {
+        spot.x = seam
+          ? tuneDrag.x - (spot.w - tuneDrag.w) / window.innerWidth * 100 / 2
+          : tuneDrag.x - (spot.w - tuneDrag.w) / 2;
+      } else if (west) {
+        spot.x = seam
+          ? tuneDrag.x - (spot.w - tuneDrag.w) / window.innerWidth * 100
+          : tuneDrag.x + tuneDrag.w - spot.w;
+      }
+    }
+    if (growH && (spot.h || tuneDrag.h)) {
+      const baseH = tuneDrag.h || spot.h;
+      const nextH = Math.max(px ? 40 : 4, baseH + heightUnit);
+      spot.h = px ? Math.round(nextH) : Math.round(nextH * 10) / 10;
+      if (event.altKey) spot.y = tuneDrag.y - (spot.h - baseH) / 2;
+      else if (north) spot.y = tuneDrag.y + baseH - spot.h;
+    } else if (growW && spot.h && tuneDrag.h && !growH) {
+      spot.h = Math.max(40, Math.round(tuneDrag.h * spot.w / tuneDrag.w));
+    }
+  }
+  saveLayout();
+  fillTuner();
+});
+document.addEventListener("pointerup", () => { tuneDrag = null; });
+
+document.getElementById("stage").addEventListener("transitionend", (event) => {
+  if (event.target.id === "stage" && event.propertyName === "transform") finishMove();
+});
+
+const COCREATE_KEY = "handoff-visual-cocreate";
+let cocreate = { on: false, seq: 1, images: [], strokes: [], undo: [] };
+try {
+  const savedCreate = JSON.parse(localStorage.getItem(COCREATE_KEY) || "null");
+  if (savedCreate && Array.isArray(savedCreate.images) && Array.isArray(savedCreate.strokes)) {
+    cocreate.images = savedCreate.images;
+    cocreate.strokes = savedCreate.strokes;
+    cocreate.seq = savedCreate.seq || 1;
+  }
+} catch (err) {}
+let coGesture = null;
+
+function saveCocreate() {
+  try {
+    localStorage.setItem(COCREATE_KEY, JSON.stringify({
+      seq: cocreate.seq,
+      images: cocreate.images,
+      strokes: cocreate.strokes
+    }));
+  } catch (err) {}
+}
+function cocreateBoard() {
+  return document.querySelector('[data-panel="main"] .board');
+}
+function boardPoint(event) {
+  const board = cocreateBoard();
+  const rect = board.getBoundingClientRect();
+  return {
+    x: (event.clientX - rect.left) / rect.width,
+    y: (event.clientY - rect.top) / rect.height
+  };
+}
+function setCocreate(on) {
+  cocreate.on = on;
+  const board = cocreateBoard();
+  const button = document.getElementById("cocreate-toggle");
+  board.classList.toggle("is-cocreate", on);
+  document.getElementById("controls").classList.toggle("is-locked", on);
+  button.setAttribute("aria-pressed", on ? "true" : "false");
+  button.setAttribute("aria-label", on ? "退出共创模式" : "开启共创模式");
+  fitCocreateCanvas();
+}
+function fitCocreateCanvas() {
+  const board = cocreateBoard();
+  const canvas = document.getElementById("cocreate-ink");
+  const width = board.offsetWidth;
+  const height = board.offsetHeight;
+  const ratio = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+  }
+  drawCocreateInk();
+}
+function drawCocreateInk(live) {
+  const canvas = document.getElementById("cocreate-ink");
+  const ctx = canvas.getContext("2d");
+  const ratio = window.devicePixelRatio || 1;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const width = canvas.width / ratio;
+  const height = canvas.height / ratio;
+  const paint = (stroke) => {
+    if (!stroke.points.length) return;
+    ctx.beginPath();
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#1c1c1c";
+    stroke.points.forEach((point, index) => {
+      const x = point.x * width;
+      const y = point.y * height;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  };
+  cocreate.strokes.forEach(paint);
+  if (live) paint(live);
+}
+function paintCocreateImages() {
+  const host = document.getElementById("cocreate-items");
+  host.innerHTML = cocreate.images.map((item) => `<div class="co-image" data-id="${item.id}" style="left:${item.x * 100}%;top:${item.y * 100}%;width:${item.w * 100}%;height:${item.h * 100}%"><img src="${item.src}" alt="" draggable="false"><span class="co-handle"></span></div>`).join("");
+}
+function placeCocreateImage(node) {
+  const item = cocreate.images.find((entry) => entry.id === node.dataset.id);
+  if (!item) return;
+  node.style.left = (item.x * 100) + "%";
+  node.style.top = (item.y * 100) + "%";
+  node.style.width = (item.w * 100) + "%";
+  node.style.height = (item.h * 100) + "%";
+}
+function clearCocreate() {
+  cocreate.images = [];
+  cocreate.strokes = [];
+  cocreate.undo = [];
+  paintCocreateImages();
+  drawCocreateInk();
+  saveCocreate();
+}
+function undoCocreate() {
+  const step = cocreate.undo.pop();
+  if (!step) return;
+  if (step.kind === "image") cocreate.images = cocreate.images.filter((item) => item.id !== step.id);
+  if (step.kind === "stroke") cocreate.strokes = cocreate.strokes.filter((stroke) => stroke.id !== step.id);
+  if (step.kind === "geom") {
+    const item = cocreate.images.find((entry) => entry.id === step.id);
+    if (item) Object.assign(item, step.prev);
+  }
+  paintCocreateImages();
+  drawCocreateInk();
+  saveCocreate();
+}
+function addCocreateFiles(files, clientX, clientY) {
+  const list = [...files].filter((file) => /png|jpe?g/i.test(file.type) || /\.(png|jpe?g)$/i.test(file.name));
+  const point = { x: 0.35, y: 0.35 };
+  if (Number.isFinite(clientX)) Object.assign(point, boardPoint({ clientX, clientY }));
+  list.forEach((file, index) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const board = cocreateBoard();
+        const aspect = image.naturalWidth / image.naturalHeight || 1;
+        const w = 0.28;
+        const h = (w * board.offsetWidth) / aspect / board.offsetHeight;
+        const item = {
+          id: "i" + cocreate.seq++,
+          src: reader.result,
+          x: Math.min(0.92, Math.max(0, point.x + index * 0.03)),
+          y: Math.min(0.92, Math.max(0, point.y + index * 0.03)),
+          w: w,
+          h: h
+        };
+        cocreate.images.push(item);
+        cocreate.undo.push({ kind: "image", id: item.id });
+        paintCocreateImages();
+        saveCocreate();
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+const cocreateLayer = document.getElementById("cocreate-layer");
+const cocreateToggle = document.getElementById("cocreate-toggle");
+cocreateToggle.addEventListener("click", (event) => {
+  event.stopPropagation();
+  if (runtime.consoleOpen) return;
+  setCocreate(!cocreate.on);
+});
+cocreateToggle.addEventListener("pointerover", (event) => {
+  const tip = document.getElementById("seam-tip");
+  if (!tip) return;
+  tip.textContent = cocreate.on ? "退出共创模式" : "开启共创模式";
+  tip.style.left = event.clientX + "px";
+  tip.style.top = event.clientY + "px";
+  tip.classList.add("is-shown");
+});
+cocreateToggle.addEventListener("pointermove", (event) => {
+  const tip = document.getElementById("seam-tip");
+  if (!tip || !tip.classList.contains("is-shown")) return;
+  tip.style.left = event.clientX + "px";
+  tip.style.top = event.clientY + "px";
+});
+cocreateToggle.addEventListener("pointerout", () => {
+  const tip = document.getElementById("seam-tip");
+  if (tip) tip.classList.remove("is-shown");
+});
+cocreateBoard().addEventListener("dragover", (event) => {
+  if (!cocreate.on || runtime.view !== "main" || runtime.consoleOpen) return;
+  event.preventDefault();
+});
+cocreateBoard().addEventListener("drop", (event) => {
+  if (!cocreate.on || runtime.view !== "main" || runtime.consoleOpen) return;
+  event.preventDefault();
+  addCocreateFiles(event.dataTransfer.files, event.clientX, event.clientY);
+});
+cocreateLayer.addEventListener("pointerdown", (event) => {
+  if (!cocreate.on || runtime.view !== "main" || runtime.consoleOpen || event.button !== 0) return;
+  const image = event.target.closest(".co-image");
+  if (image) {
+    const item = cocreate.images.find((entry) => entry.id === image.dataset.id);
+    coGesture = {
+      kind: event.target.closest(".co-handle") ? "resize" : "move",
+      id: item.id,
+      pointer: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      prev: { x: item.x, y: item.y, w: item.w, h: item.h },
+      moved: false
+    };
+    image.setPointerCapture(event.pointerId);
+    event.stopPropagation();
+    return;
+  }
+  coGesture = { kind: "draw", pointer: event.pointerId, id: "s" + cocreate.seq++, points: [boardPoint(event)] };
+  cocreateLayer.setPointerCapture(event.pointerId);
+  event.preventDefault();
+});
+cocreateLayer.addEventListener("pointermove", (event) => {
+  if (!coGesture || event.pointerId !== coGesture.pointer) return;
+  const board = cocreateBoard();
+  const rect = board.getBoundingClientRect();
+  if (coGesture.kind === "draw") {
+    coGesture.points.push(boardPoint(event));
+    drawCocreateInk(coGesture);
+    return;
+  }
+  const item = cocreate.images.find((entry) => entry.id === coGesture.id);
+  const dx = (event.clientX - coGesture.startX) / rect.width;
+  const dy = (event.clientY - coGesture.startY) / rect.height;
+  if (Math.hypot(event.clientX - coGesture.startX, event.clientY - coGesture.startY) > 3) coGesture.moved = true;
+  if (coGesture.kind === "move") {
+    item.x = coGesture.prev.x + dx;
+    item.y = coGesture.prev.y + dy;
+  } else {
+    item.w = Math.max(0.04, coGesture.prev.w + dx);
+    item.h = Math.max(0.04, coGesture.prev.h + dy);
+  }
+  const node = document.querySelector('.co-image[data-id="' + item.id + '"]');
+  if (node) placeCocreateImage(node);
+});
+cocreateLayer.addEventListener("pointerup", (event) => {
+  if (!coGesture || event.pointerId !== coGesture.pointer) return;
+  const gesture = coGesture;
+  coGesture = null;
+  if (gesture.kind === "draw") {
+    if (gesture.points.length > 1) {
+      cocreate.strokes.push({ id: gesture.id, points: gesture.points });
+      cocreate.undo.push({ kind: "stroke", id: gesture.id });
+      saveCocreate();
+    }
+    drawCocreateInk();
+    return;
+  }
+  if ((gesture.kind === "move" || gesture.kind === "resize") && gesture.moved) {
+    cocreate.undo.push({ kind: "geom", id: gesture.id, prev: gesture.prev });
+    saveCocreate();
+  } else if (gesture.kind === "move" || gesture.kind === "resize") {
+    const item = cocreate.images.find((entry) => entry.id === gesture.id);
+    if (item) Object.assign(item, gesture.prev);
+  }
+});
+window.addEventListener("resize", fitCocreateCanvas);
+document.querySelector('[data-panel="main"] .grid').addEventListener("load", fitCocreateCanvas);
+paintCocreateImages();
+fitCocreateCanvas();
+
+runtime.view = "main";
+runtime.ownFace = "back";
+runtime.inspectId = null;
+mount();
+
+</script>
+</body>
+</html>
